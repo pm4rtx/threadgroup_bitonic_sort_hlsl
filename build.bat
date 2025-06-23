@@ -106,6 +106,7 @@ goto :eof
         if exist %pix_bin_path%\WinPixEventRuntime.dll  copy /v /y /b %pix_bin_path%\WinPixEventRuntime.dll .
 
         :: compile C++
+        set objlst=
         call :compile_%1 %SRC_DIR%
         for %%a in (*.obj) do (
             set objlst=%objlst% %%a

@@ -40,10 +40,16 @@
 #       define COMPILER_WARNING_MSVC_PUSH()     COMPILER_PRAGMA_MSVC(warning(push))
 #       define COMPILER_WARNING_MSVC_POP()      COMPILER_PRAGMA_MSVC(warning(pop))
 #       define COMPILER_WARNING_DISABLE_MSVC(w) COMPILER_PRAGMA_MSVC(warning(disable : w))
+#       if _MSC_VER >= 1920
+#           define COMPILER_WARNING_DISABLE_MSVC19(w) COMPILER_PRAGMA_MSVC(warning(disable : w))
+#       else
+#           define COMPILER_WARNING_DISABLE_MSVC19(w)
+#       endif
 #   elif defined(__clang__) || defined(__GNUC__)
 #       define COMPILER_WARNING_MSVC_PUSH()
 #       define COMPILER_WARNING_MSVC_POP()
 #       define COMPILER_WARNING_DISABLE_MSVC(w)
+#       define COMPILER_WARNING_DISABLE_MSVC19(w)
 #   else
 #       error Unknown Compiler
 #   endif
@@ -152,7 +158,10 @@ COMPILER_WARNING_DISABLE_MSVC(5039) /** warning C5039: 'Name A': pointer or refe
 #include <pix3.h>
 COMPILER_WARNING_POP()
 
+COMPILER_WARNING_PUSH()
+COMPILER_WARNING_DISABLE_MSVC19(5045) /** warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified */
 #include "d3d12aid.h"
+COMPILER_WARNING_POP()
 
 extern "C" { __declspec(dllexport) extern const UINT D3D12SDKVersion = D3D12_SDK_VERSION;}
 
@@ -383,7 +392,6 @@ static void perfData_Print(const PerfData *inPerfData, uint32_t workItemCount)
 }
 
 static const uint32_t kCmdBufferInFlight = 3;
-static const uint32_t kWaitForGpuTimeMs = 10000;
 
 static const uint32_t kMaxSortKeysPerTg = 4096;
 static const uint32_t kBenchmarkFrameCount = 10;
@@ -395,9 +403,19 @@ int main(int argc, char **argv)
     load_module(&dxgi, L"dxgi.dll");
     load_module(&d3d12, L"d3d12.dll");
 
-    (void)(argc);
-    (void)(argv);
-    PIXLoadLatestWinPixGpuCapturerLibrary();
+    uint32_t options = 0;
+    for (int argi = 1; argi < argc; ++argi)
+    {
+        if (0 == strcmp("--pixcaptures", argv[argi]))
+        {
+            options ^= 0x1u;
+        }
+    }
+
+    if (options & 0x1u)
+    {
+        PIXLoadLatestWinPixGpuCapturerLibrary();
+    }
 
     load_CreateDXGIFactory2(&dxgi);
     load_D3D12CreateDevice(&d3d12);
@@ -474,19 +492,31 @@ int main(int argc, char **argv)
             const uint32_t kFrameCount = kBenchmarkFrameCount * kShaderCount + kCmdBufferInFlight;
 
             uint32_t kCmdBufferIndex = 0;
-            uint32_t kPIXCaptureTaken = 0;
             for (uint32_t frameIndex = 0; frameIndex < kFrameCount; ++frameIndex)
             {
-                ID3D12GraphicsCommandList *cmdList = d3d12aid_CmdQueue_StartCmdList(&queue, 0);
+                // run each Shader/Kernel every 'kBenchmarkFrameCount' frames
+                const uint32_t dispatchShaderId = (frameIndex / kBenchmarkFrameCount) % kShaderCount;
+                const ShaderBytecode *dispatchShaderBytecode = NULL;
 
-                if (kPIXCaptureTaken == 0)
+                if (dispatchShaderId >= _countof(GShaderBytecodesNoWaveIntrinsics))
+                    dispatchShaderBytecode = &GShaderBytecodes[dispatchShaderId - _countof(GShaderBytecodesNoWaveIntrinsics)];
+                else
+                    dispatchShaderBytecode = &GShaderBytecodesNoWaveIntrinsics[dispatchShaderId];
+
+                const uint32_t dispatchKernelSize = 1u << dispatchShaderBytecode->kernelSizeLog2;
+                const uint32_t dispatchTGroupSize = 1u << dispatchShaderBytecode->tgroupSizeLog2;
+
+                // use only frame_0 of each benchmark
+                if ((options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
                 {
                     wchar_t buffer[256];
-                    swprintf(buffer, _countof(buffer), L"D:\\tg_bitonic_venId_0x%04x_devId_0x%04x_revn_0x%02x_%s.wpix", desc.VendorId, desc.DeviceId, desc.Revision, desc.Description);
+                    swprintf(buffer, _countof(buffer), L"%c:\\tg_bitonic_kernel_%u_tgroup_%u_waveintr_%u_venId_0x%04x_devId_0x%04x_revId_0x%02x_%s.wpix", argv[0][0], dispatchKernelSize, dispatchTGroupSize, dispatchShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 1 : 0, desc.VendorId, desc.DeviceId, desc.Revision, desc.Description);
                     PIXCaptureParameters params;
                     params.GpuCaptureParameters.FileName = buffer;
                     PIXBeginCapture(PIX_CAPTURE_GPU, &params);
                 }
+
+                ID3D12GraphicsCommandList *cmdList = d3d12aid_CmdQueue_StartCmdList(&queue, 0);
 
                 if (frameIndex == 0)
                 {
@@ -497,22 +527,11 @@ int main(int argc, char **argv)
                     cmdList->ResourceBarrier(1, &barrier);
                 }
 
-                // run each Shader/Kernel every 'kBenchmarkFrameCount' frames
-                uint32_t dispatchShaderId = (frameIndex / kBenchmarkFrameCount) % kShaderCount;
-
                 d3d12aid_ComputeRsPs_Set(&rspsBitonicSort[dispatchShaderId], cmdList);
                 cmdList->SetComputeRootShaderResourceView(0, sortInput.bufGpu->GetGPUVirtualAddress());
                 cmdList->SetComputeRootUnorderedAccessView(1, sortOutput.bufGpu->GetGPUVirtualAddress());
                 cmdList->SetComputeRoot32BitConstant(2, options1.TotalLaneCount, 0);
 
-                const ShaderBytecode *dispatchShaderBytecode = NULL;
-
-                if (dispatchShaderId >= _countof(GShaderBytecodesNoWaveIntrinsics))
-                    dispatchShaderBytecode = &GShaderBytecodes[dispatchShaderId - _countof(GShaderBytecodesNoWaveIntrinsics)];
-                else
-                    dispatchShaderBytecode = &GShaderBytecodesNoWaveIntrinsics[dispatchShaderId];
-
-                const uint32_t dispatchKernelSize = 1u << dispatchShaderBytecode->kernelSizeLog2;
                 const uint32_t dispatchKernelCount = (kSortKeysPerDispatch + dispatchKernelSize - 1) >> dispatchShaderBytecode->kernelSizeLog2;
                 const uint32_t dispatchKernelCountY = dispatchKernelCount / options1.TotalLaneCount;
                 const uint32_t dispatchKernelCountX = options1.TotalLaneCount;
@@ -558,8 +577,7 @@ int main(int argc, char **argv)
                     /** if it's a the last benchmark run for currently selected shader variant, dump 'perfData' information */
                     if (benchmarkFrameIndex == kBenchmarkFrameCount - 1u)
                     {
-                        const uint32_t readbackKernelCount = (kSortKeysPerDispatch + readbackKernelSize - 1) >> readbackShaderBytecode->kernelSizeLog2;
-                        const uint32_t readbackTGroupCount = (kSortKeysPerDispatch + readbackTGroupSize - 1) >> readbackShaderBytecode->tgroupSizeLog2;
+                        //const uint32_t readbackKernelCount = (kSortKeysPerDispatch + readbackKernelSize - 1) >> readbackShaderBytecode->kernelSizeLog2;
                         printf("[KernelSize=%4u, TGroupSize=%4u, NoWaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 0 : 1);
                         // Per Lane
                         //perfData_Print(&perfData, readbackKernelCount << GShaderBytecodes[readbackShaderId].tgroupSizeLog2);
@@ -584,10 +602,9 @@ int main(int argc, char **argv)
                 d3d12aid_Timestamps_AdvanceFrame(&timestamps, cmdList);
                 d3d12aid_CmdQueue_SubmitCmdList(&queue, 0);
 
-                if (kPIXCaptureTaken == 0)
+                if ((options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
                 {
                     PIXEndCapture(FALSE);
-                    kPIXCaptureTaken = 1;
                 }
 
                 kCmdBufferIndex = (kCmdBufferIndex + 1) % kCmdBufferInFlight;
