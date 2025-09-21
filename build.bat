@@ -26,6 +26,9 @@ set d3d_bin_path=
 set dxc_bin_path=
 set pix_bin_path=
 
+if not defined INCLUDE  echo [`INCLUDE` environment variable doesn't exist. Make sure to setup it or run `vcvarsall.all`]   && goto :eof
+if not defined LIB      echo [`LIB` environment variable doesn't exist. Make sure to setup it or run `vcvarsall.all`]       && goto :eof
+
 for %%a in (%*) do set "%%a=1"
 
 if not "%release%"=="1" if not "%debug%"=="1" echo [Configuration ("Debug" or "Release") was not set. Choosing "Release"] && set release=1
