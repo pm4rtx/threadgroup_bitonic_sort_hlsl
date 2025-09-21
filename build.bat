@@ -12,15 +12,9 @@ set d3d_ver=1.615.0
 set dxc_ver=1.8.2502.8
 set pix_ver=1.0.240308001
 
-set d3d_inc=Microsoft.Direct3D.D3D12.%d3d_ver%\build\native\include
-set dxc_inc=Microsoft.Direct3D.DXC.%dxc_ver%\build\native\include
-set pix_inc=WinPixEventRuntime.%pix_ver%\Include\WinPixEventRuntime
-
 set d3d_bin=Microsoft.Direct3D.D3D12.%d3d_ver%\build\native\bin\x64
 set dxc_bin=Microsoft.Direct3D.DXC.%dxc_ver%\build\native\bin\x64
 set pix_bin=WinPixEventRuntime.%pix_ver%\bin\x64
-
-set PREFERRED_INCLUDE_PATH=
 
 set d3d_bin_path=
 set dxc_bin_path=
@@ -51,9 +45,10 @@ if not exist .nuget_cache (
 
 :: setup NuGet include/lib paths
 if exist .nuget_cache (
-    set "PREFERRED_INCLUDE_PATH=!PREFERRED_INCLUDE_PATH! /I %SRC_DIR%\.nuget_cache\%d3d_inc%"
-    set "PREFERRED_INCLUDE_PATH=!PREFERRED_INCLUDE_PATH! /I %SRC_DIR%\.nuget_cache\%dxc_inc%"
-    set "PREFERRED_INCLUDE_PATH=!PREFERRED_INCLUDE_PATH! /I %SRC_DIR%\.nuget_cache\%pix_inc%"
+    :: prepend D3D/DXC/PIX include paths to make sure headers in those directories are prioritised
+    set "INCLUDE=%SRC_DIR%\.nuget_cache\Microsoft.Direct3D.D3D12.%d3d_ver%\build\native\include;!INCLUDE!"
+    set "INCLUDE=%SRC_DIR%\.nuget_cache\Microsoft.Direct3D.DXC.%dxc_ver%\build\native\include;!INCLUDE!"
+    set "INCLUDE=%SRC_DIR%\.nuget_cache\WinPixEventRuntime.%pix_ver%\Include\WinPixEventRuntime;!INCLUDE!"
 
     set "d3d_bin_path=%SRC_DIR%\.nuget_cache\%d3d_bin%"
     set "dxc_bin_path=%SRC_DIR%\.nuget_cache\%dxc_bin%"
@@ -125,13 +120,13 @@ exit /b 0
 exit /b 0
 
 :compile_debug
-    for %%a in (%1\*.cpp) do (cl /c /nologo /I %1\.build_shaders /I %1\external %PREFERRED_INCLUDE_PATH% /Od /Zi /Fo%%~na.obj /Fd%%~na.pdb %%a)
+    for %%a in (%1\*.cpp) do (cl /c /nologo /I %1\.build_shaders /I %1\external /Od /Zi /Fo%%~na.obj /Fd%%~na.pdb %%a)
 exit /b 0
 
 :compile_release
-    rem for %%a in (%1\*.cpp) do (cl /c /nologo /I %1\.build_shaders /I %1\external %PREFERRED_INCLUDE_PATH% /O2 /Zi /Fo%%~na.obj %%a)
+    rem for %%a in (%1\*.cpp) do (cl /c /nologo /I %1\.build_shaders /I %1\external /O2 /Zi /Fo%%~na.obj %%a)
 
-    for %%a in (%1\*.cpp) do (cl /c /nologo /I %1\.build_shaders /I %1\external %PREFERRED_INCLUDE_PATH% /O2 /GS- /GL /wd4710 /wd4711 /Zi /c /nologo /EHsc /GR- /Zl /Wall /WX /WL /wd4514 /Fo%%~na.obj %%a)
+    for %%a in (%1\*.cpp) do (cl /c /nologo /I %1\.build_shaders /I %1\external /O2 /GS- /GL /wd4710 /wd4711 /Zi /c /nologo /EHsc /GR- /Zl /Wall /WX /WL /wd4514 /Fo%%~na.obj %%a)
 exit /b 0
 
 :link_debug_exe
