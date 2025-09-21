@@ -56,12 +56,6 @@ if exist .nuget_cache (
     set "dxc_bin_path=%SRC_DIR%\.nuget_cache\%dxc_bin%"
     set "pix_bin_path=%SRC_DIR%\.nuget_cache\%pix_bin%"
     set "DXC=!dxc_bin_path!\dxc.exe"
-) else (
-    :: setup include/lib paths in existing "external" directory
-    if exist %SRC_DIR%\external (
-        set "PREFERRED_INCLUDE_PATH=!PREFERRED_INCLUDE_PATH! /I %SRC_DIR%\external\WinPixEventRuntime.1.0.240308001\include"
-        set "pix_bin_path=%SRC_DIR%\external\WinPixEventRuntime.1.0.240308001\bin\x64\"
-    )
 )
 
 if "%no_shaders%"=="1" (
