@@ -6,7 +6,7 @@ cls
 cd /D "%~dp0"
 
 set SRC_DIR=%CD%
-set DXC="dxc.exe"
+set DXC=
 
 set d3d_ver=1.615.0
 set dxc_ver=1.8.2502.8
@@ -19,13 +19,16 @@ for %%a in (%*) do set "%%a=1"
 
 if not "%release%"=="1" if not "%debug%"=="1" echo [Configuration ("Debug" or "Release") was not set. Choosing "Release"] && set release=1
 
+if not "%no_nuget%"=="1" set no_nuget=0
+if not "%no_shaders%"=="1" set no_shaders=0
+
 :: Populate NuGet cache
-if not exist .nuget_cache (
+if not exist .nuget_cache if not "%no_nuget%"=="1" (
     where /q curl
     if errorlevel 1 (
-        echo [Can't find curl.exe in PATH... skipping .nuget_cache population]
+        echo [Can't find `curl.exe` in PATH... skipping `.nuget_cache` population]
     ) else (
-        echo [Found curl.exe in PATH... populating .nuget_cache]
+        echo [Found `curl.exe` in PATH... populating `.nuget_cache`]
         mkdir .nuget_cache
         pushd .nuget_cache
             call :fetch_nuget_package Microsoft.Direct3D.D3D12 %d3d_ver%
@@ -34,9 +37,10 @@ if not exist .nuget_cache (
         popd
     )
 )
+:: setup NuGet paths
+if not exist .nuget_cache set no_nuget=1
 
-:: setup NuGet include/lib paths
-if exist .nuget_cache (
+if not "%no_nuget%"=="1" (
     :: prepend D3D/DXC/PIX include paths to make sure headers in those directories are prioritised
     set "INCLUDE=%SRC_DIR%\.nuget_cache\Microsoft.Direct3D.D3D12.%d3d_ver%\build\native\include;!INCLUDE!"
     set "INCLUDE=%SRC_DIR%\.nuget_cache\Microsoft.Direct3D.DXC.%dxc_ver%\build\native\include;!INCLUDE!"
@@ -46,10 +50,23 @@ if exist .nuget_cache (
     set "dxc_bin_path=%SRC_DIR%\.nuget_cache\Microsoft.Direct3D.DXC.%dxc_ver%\build\native\bin\x64"
     set "pix_bin_path=%SRC_DIR%\.nuget_cache\WinPixEventRuntime.%pix_ver%\bin\x64"
     set "DXC=!dxc_bin_path!\dxc.exe"
+) else (
+    if not exist .nuget_cache (
+        echo [`.nuget_cache` doesn't exist. Using `PATH` to find `dxc.exe`]
+    ) else (
+        echo [NuGet disabled. Using `PATH` to find `dxc.exe`]
+    )
+    where /q dxc
+    if errorlevel 1 (
+        echo [Can't find `dxc.exe` in `PATH`...]
+    ) else (
+        echo [Found `dxc.exe` in `PATH`]
+        set DXC="dxc.exe"
+    )
 )
 
 if "%no_shaders%"=="1" (
-    echo [Skipping rebuilding shaders]
+    echo [`no_shaders` is specified. Skipping rebuilding shaders.]
 ) else (
     :: We rebuild shaders when any of the configs compiled
     if not exist .build_shaders mkdir .build_shaders
