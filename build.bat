@@ -12,14 +12,6 @@ set d3d_ver=1.615.0
 set dxc_ver=1.8.2502.8
 set pix_ver=1.0.240308001
 
-set d3d_bin=Microsoft.Direct3D.D3D12.%d3d_ver%\build\native\bin\x64
-set dxc_bin=Microsoft.Direct3D.DXC.%dxc_ver%\build\native\bin\x64
-set pix_bin=WinPixEventRuntime.%pix_ver%\bin\x64
-
-set d3d_bin_path=
-set dxc_bin_path=
-set pix_bin_path=
-
 if not defined INCLUDE  echo [`INCLUDE` environment variable doesn't exist. Make sure to setup it or run `vcvarsall.all`]   && goto :eof
 if not defined LIB      echo [`LIB` environment variable doesn't exist. Make sure to setup it or run `vcvarsall.all`]       && goto :eof
 
@@ -50,9 +42,9 @@ if exist .nuget_cache (
     set "INCLUDE=%SRC_DIR%\.nuget_cache\Microsoft.Direct3D.DXC.%dxc_ver%\build\native\include;!INCLUDE!"
     set "INCLUDE=%SRC_DIR%\.nuget_cache\WinPixEventRuntime.%pix_ver%\Include\WinPixEventRuntime;!INCLUDE!"
 
-    set "d3d_bin_path=%SRC_DIR%\.nuget_cache\%d3d_bin%"
-    set "dxc_bin_path=%SRC_DIR%\.nuget_cache\%dxc_bin%"
-    set "pix_bin_path=%SRC_DIR%\.nuget_cache\%pix_bin%"
+    set "d3d_bin_path=%SRC_DIR%\.nuget_cache\Microsoft.Direct3D.D3D12.%d3d_ver%\build\native\bin\x64"
+    set "dxc_bin_path=%SRC_DIR%\.nuget_cache\Microsoft.Direct3D.DXC.%dxc_ver%\build\native\bin\x64"
+    set "pix_bin_path=%SRC_DIR%\.nuget_cache\WinPixEventRuntime.%pix_ver%\bin\x64"
     set "DXC=!dxc_bin_path!\dxc.exe"
 )
 
@@ -92,10 +84,10 @@ goto :eof
 :build_config
     if not exist .build_%1 mkdir .build_%1
     pushd .build_%1
-        :: copy the DLLs if NuGet packages exist or were acquired
-        if exist %d3d_bin_path%\D3D12Core.dll           copy /v /y /b %d3d_bin_path%\D3D12Core.dll .
-        if exist %d3d_bin_path%\d3d12SDKLayers.dll      copy /v /y /b %d3d_bin_path%\d3d12SDKLayers.dll .
-        if exist %pix_bin_path%\WinPixEventRuntime.dll  copy /v /y /b %pix_bin_path%\WinPixEventRuntime.dll .
+        :: copy the required DLLs if NuGet packages exist or were acquired
+        if defined d3d_bin_path if exist %d3d_bin_path%\D3D12Core.dll           copy /v /y /b %d3d_bin_path%\D3D12Core.dll .
+        if defined d3d_bin_path if exist %d3d_bin_path%\d3d12SDKLayers.dll      copy /v /y /b %d3d_bin_path%\d3d12SDKLayers.dll .
+        if defined pix_bin_path if exist %pix_bin_path%\WinPixEventRuntime.dll  copy /v /y /b %pix_bin_path%\WinPixEventRuntime.dll .
 
         :: compile C++
         set objlst=
