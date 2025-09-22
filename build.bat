@@ -60,13 +60,17 @@ if not "%no_nuget%"=="1" (
     if errorlevel 1 (
         echo [Can't find `dxc.exe` in `PATH`...]
     ) else (
-        echo [Found `dxc.exe` in `PATH`]
+        echo [Found `dxc.exe` in `PATH` at the following locations:]
+        for /f "tokens=* delims=" %%i in ('^"dxc.exe -help ^| find "Version:"^"') do echo [    %%i]
+        for /f "tokens=* delims=" %%i in ('where dxc') do echo [    %%i]
         set DXC="dxc.exe"
     )
 )
 
 if "%no_shaders%"=="1" (
-    echo [`no_shaders` is specified. Skipping rebuilding shaders.]
+    echo [Skipping building shaders, `no_shaders` was specified.]
+) else if not defined DXC (
+    echo [Skipping building shaders, `dxc.exe` wasn't found.]
 ) else (
     :: We rebuild shaders when any of the configs compiled
     if not exist .build_shaders mkdir .build_shaders
