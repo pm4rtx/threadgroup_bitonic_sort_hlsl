@@ -75,16 +75,17 @@ if "%no_shaders%"=="1" (
     :: We rebuild shaders when any of the configs compiled
     if not exist .build_shaders mkdir .build_shaders
     pushd .build_shaders
-
-        rem for %%i in (%SRC_DIR%\*.hlsl) do call :compile_shader %SRC_DIR% %%~ni
+        set dxc_flags_std=-HV 2021 -Zs -Qstrip_debug
+        set dxc_flags_dbg=-Od !dxc_flags_std!
+        set dxc_flags_opt=-O3 !dxc_flags_std!
+        set dxc_compile_cs=call %DXC% -E main -T cs_6_0 !dxc_flags_opt!
 
         for /l %%i in (1,1,10) do (
             echo [Compiling Shader Permutations %%i0%%]
             for %%j in (0,1,2) do (
-                for %%k in (0,1) do (
-                    set /a kernel_size_log2=%%i+%%j
-                    call :compile_shader_bitonic_sort_variant %SRC_DIR% threadgroup_bitonic_sort !kernel_size_log2! %%i %%k
-                )
+                set /a kernel_size_log2=%%i+%%j
+                call :compile_cs threadgroup_bitonic_sort threadgroup_bitonic_sort_!kernel_size_log2!_%%i_0 -DKERNEL_SIZE_LOG2=!kernel_size_log2! -DTGROUP_SIZE_LOG2=%%i
+                call :compile_cs threadgroup_bitonic_sort threadgroup_bitonic_sort_!kernel_size_log2!_%%i_1 -DKERNEL_SIZE_LOG2=!kernel_size_log2! -DTGROUP_SIZE_LOG2=%%i -DNO_WAVE_INTRINSICS=1
             )
         )
     popd
@@ -120,16 +121,20 @@ goto :eof
     popd
 exit /b 0
 
-:compile_shader_bitonic_sort_variant
-    if "%5"=="1" (
-        %DXC% -E main -T cs_6_0 -HV 2021 -DKERNEL_SIZE_LOG2=%3 -DTGROUP_SIZE_LOG2=%4 -DNO_WAVE_INTRINSICS=1 -O3 -Zs -Qstrip_debug -Fo shader_%2_%3_%4_%5.cso -Fc shader_%2_%3_%4_%5.asm -Fh shader_%2_%3_%4_%5.h -Vn shader_%2_%3_%4_%5 -Fd shader_%2_%3_%4_%5.pdb "%1\%2.hlsl"
-    ) else (
-        %DXC% -E main -T cs_6_0 -HV 2021 -DKERNEL_SIZE_LOG2=%3 -DTGROUP_SIZE_LOG2=%4 -O3 -Zs -Qstrip_debug -Fo shader_%2_%3_%4_%5.cso -Fc shader_%2_%3_%4_%5.asm -Fh shader_%2_%3_%4_%5.h -Vn shader_%2_%3_%4_%5 -Fd shader_%2_%3_%4_%5.pdb "%1\%2.hlsl"
+:: this function requries
+::      - the first argument to be the name of source file
+::      - the second argument to be the name of the destination file
+:compile_cs
+    setlocal
+    :: split input arguments into 1st, 2nd and the rest.
+    :: The 1st and 2nd used as source and destination names while everything else is passed into `dxc.exe`
+    for /f "tokens=1,2,* delims= " %%g in ("%*") do (
+        set "src=%%g"
+        set "dst=%%h"
+        set "args=%%i"
     )
-exit /b 0
-
-:compile_shader
-    %DXC% -E main -T cs_6_0 -HV 2021 -O3 -Zs -Qstrip_debug -Fo shader_%2.cso -Fc shader_%2.asm -Fh shader_%2.h -Vn shader_%2 -Fd shader_%2.pdb "%1\%2.hlsl"
+    %dxc_compile_cs% %args% -Fo shader_%dst%.cso -Fc shader_%dst%.asm -Fh shader_%dst%.h -Vn shader_%dst% -Fd shader_%dst%.pdb ..\%src%.hlsl
+    endlocal
 exit /b 0
 
 :compile_debug
