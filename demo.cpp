@@ -436,193 +436,193 @@ int main(int argc, char **argv)
 
 void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_ADAPTER_DESC1 *desc, ID3D12Device *device, void *userdata)
 {
-            (void)adapter;
-            const benchmark_SharedData *sharedData = (const benchmark_SharedData *)userdata;
-            D3D12_FEATURE_DATA_D3D12_OPTIONS1 options1;
-            D3D12AID_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
-            printf("Total Lane Count %u\n", options1.TotalLaneCount);
+    (void)adapter;
+    const benchmark_SharedData *sharedData = (const benchmark_SharedData *)userdata;
+    D3D12_FEATURE_DATA_D3D12_OPTIONS1 options1;
+    D3D12AID_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
+    printf("Total Lane Count %u\n", options1.TotalLaneCount);
 
-            const uint32_t kSortKeysPerDispatch = options1.TotalLaneCount * kMaxSortKeysPerTg;
+    const uint32_t kSortKeysPerDispatch = options1.TotalLaneCount * kMaxSortKeysPerTg;
 
-            d3d12aid_CmdQueue queue;
-            d3d12aid_CmdQueue_Create(&queue, device, kCmdBufferInFlight, 1, D3D12_COMMAND_LIST_TYPE_DIRECT);
+    d3d12aid_CmdQueue queue;
+    d3d12aid_CmdQueue_Create(&queue, device, kCmdBufferInFlight, 1, D3D12_COMMAND_LIST_TYPE_DIRECT);
 
-            printf("Created D3D12 Command Queue, Allocators and Lists ...\n");
+    printf("Created D3D12 Command Queue, Allocators and Lists ...\n");
 
-            uint64_t gpuTimestampFreq = 0;
-            D3D12AID_CHECK(queue.queue->GetTimestampFrequency(&gpuTimestampFreq));
+    uint64_t gpuTimestampFreq = 0;
+    D3D12AID_CHECK(queue.queue->GetTimestampFrequency(&gpuTimestampFreq));
 
-            PerfData perfData;
+    PerfData perfData;
 
-            d3d12aid_Timestamps timestamps;
-            d3d12aid_Timestamps_Create(&timestamps, device, 2, kCmdBufferInFlight);
+    d3d12aid_Timestamps timestamps;
+    d3d12aid_Timestamps_Create(&timestamps, device, 2, kCmdBufferInFlight);
 
-            d3d12aid_MappedBuffer sortInput;
-            d3d12aid_MappedBuffer sortOutput;
-            d3d12aid_MappedBuffer_Create(&sortInput, device, 1, sizeof(uint32_t) * kSortKeysPerDispatch, D3D12_HEAP_TYPE_UPLOAD);
-            d3d12aid_MappedBuffer_Create(&sortOutput, device, kCmdBufferInFlight, sizeof(uint32_t) * kSortKeysPerDispatch, D3D12_HEAP_TYPE_READBACK);
+    d3d12aid_MappedBuffer sortInput;
+    d3d12aid_MappedBuffer sortOutput;
+    d3d12aid_MappedBuffer_Create(&sortInput, device, 1, sizeof(uint32_t) * kSortKeysPerDispatch, D3D12_HEAP_TYPE_UPLOAD);
+    d3d12aid_MappedBuffer_Create(&sortOutput, device, kCmdBufferInFlight, sizeof(uint32_t) * kSortKeysPerDispatch, D3D12_HEAP_TYPE_READBACK);
 
-            uint32_t *randomSortInput = (uint32_t *)malloc(sizeof(uint32_t) * kSortKeysPerDispatch);
-            // initialize with a sequence of increasing order to check it's going to be sorted in decreasing order
-            for (uint32_t i = 0; i < kSortKeysPerDispatch; ++i)
+    uint32_t *randomSortInput = (uint32_t *)malloc(sizeof(uint32_t) * kSortKeysPerDispatch);
+    // initialize with a sequence of increasing order to check it's going to be sorted in decreasing order
+    for (uint32_t i = 0; i < kSortKeysPerDispatch; ++i)
+    {
+        randomSortInput[i] = i;
+    }
+    d3d12aid_MappedBuffer_Append(&sortInput, 0, randomSortInput, sizeof(uint32_t) * kSortKeysPerDispatch);
+
+    const uint32_t kShaderMaxCount = _countof(GShaderBytecodesNoWaveIntrinsics) + _countof(GShaderBytecodes);
+
+    // We test kernels w/ and w/o wave intrinsics support if possible
+    const uint32_t kShaderCount = _countof(GShaderBytecodesNoWaveIntrinsics) + (options1.WaveOps ? _countof(GShaderBytecodes) : 0);
+
+    d3d12aid_ComputeRsPs rspsBitonicSort[kShaderMaxCount];
+
+    for (uint32_t i = 0; i < _countof(GShaderBytecodesNoWaveIntrinsics); ++i)
+    {
+        d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i], device, GShaderBytecodesNoWaveIntrinsics[i].shaderBytecode, GShaderBytecodesNoWaveIntrinsics[i].shaderBytecodeSizeInBytes);
+    }
+
+    for (uint32_t i = 0; i < _countof(GShaderBytecodes); ++i)
+    {
+        d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i + _countof(GShaderBytecodesNoWaveIntrinsics)], device, GShaderBytecodes[i].shaderBytecode, GShaderBytecodes[i].shaderBytecodeSizeInBytes);
+    }
+
+    printf("Created D3D12 Resources and PSOs ...\n");
+
+    perfData_PrintHeader();
+
+    const uint32_t kFrameCount = kBenchmarkFrameCount * kShaderCount + kCmdBufferInFlight;
+
+    uint32_t kCmdBufferIndex = 0;
+    for (uint32_t frameIndex = 0; frameIndex < kFrameCount; ++frameIndex)
+    {
+        // run each Shader/Kernel every 'kBenchmarkFrameCount' frames
+        const uint32_t dispatchShaderId = (frameIndex / kBenchmarkFrameCount) % kShaderCount;
+        const ShaderBytecode *dispatchShaderBytecode = NULL;
+
+        if (dispatchShaderId >= _countof(GShaderBytecodesNoWaveIntrinsics))
+            dispatchShaderBytecode = &GShaderBytecodes[dispatchShaderId - _countof(GShaderBytecodesNoWaveIntrinsics)];
+        else
+            dispatchShaderBytecode = &GShaderBytecodesNoWaveIntrinsics[dispatchShaderId];
+
+        const uint32_t dispatchKernelSize = 1u << dispatchShaderBytecode->kernelSizeLog2;
+        const uint32_t dispatchTGroupSize = 1u << dispatchShaderBytecode->tgroupSizeLog2;
+
+        // use only frame_0 of each benchmark
+        if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
+        {
+            wchar_t buffer[256];
+            swprintf(buffer, _countof(buffer), L"%c:\\tg_bitonic_kernel_%u_tgroup_%u_waveintr_%u_venId_0x%04x_devId_0x%04x_revId_0x%02x_%s.wpix", sharedData->captureDrive, dispatchKernelSize, dispatchTGroupSize, dispatchShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 1 : 0, desc->VendorId, desc->DeviceId, desc->Revision, desc->Description);
+            PIXCaptureParameters params;
+            params.GpuCaptureParameters.FileName = buffer;
+            PIXBeginCapture(PIX_CAPTURE_GPU, &params);
+        }
+
+        ID3D12GraphicsCommandList *cmdList = d3d12aid_CmdQueue_StartCmdList(&queue, 0);
+
+        if (frameIndex == 0)
+        {
+            d3d12aid_MappedBuffer_Transfer(cmdList, &sortInput, 0);
+
+            D3D12_RESOURCE_BARRIER barrier;
+            d3d12aid_MappedBuffer_EndTransfer(&barrier, &sortInput, D3D12_RESOURCE_STATE_GENERIC_READ);
+            cmdList->ResourceBarrier(1, &barrier);
+        }
+
+        d3d12aid_ComputeRsPs_Set(&rspsBitonicSort[dispatchShaderId], cmdList);
+        cmdList->SetComputeRootShaderResourceView(0, sortInput.bufGpu->GetGPUVirtualAddress());
+        cmdList->SetComputeRootUnorderedAccessView(1, sortOutput.bufGpu->GetGPUVirtualAddress());
+        cmdList->SetComputeRoot32BitConstant(2, options1.TotalLaneCount, 0);
+
+        const uint32_t dispatchKernelCount = (kSortKeysPerDispatch + dispatchKernelSize - 1) >> dispatchShaderBytecode->kernelSizeLog2;
+        const uint32_t dispatchKernelCountY = dispatchKernelCount / options1.TotalLaneCount;
+        const uint32_t dispatchKernelCountX = options1.TotalLaneCount;
+
+        d3d12aid_Timestamps_Push(&timestamps, cmdList);
+        cmdList->Dispatch(dispatchKernelCountX, dispatchKernelCountY, 1);
+        d3d12aid_Timestamps_Push(&timestamps, cmdList);
+
+        {
+            D3D12_RESOURCE_BARRIER barrier;
+            d3d12aid_MappedBuffer_BeginTransfer(&barrier, &sortOutput, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            cmdList->ResourceBarrier(1, &barrier);
+        }
+        d3d12aid_MappedBuffer_Transfer(cmdList, &sortOutput, kCmdBufferIndex);
+
+        if (frameIndex >= kCmdBufferInFlight)
+        {
+            const uint32_t readbackFrameIndex = frameIndex - kCmdBufferInFlight;
+            const uint64_t gpuTimestampDelta = d3d12aid_Timestamps_GetDelta(&timestamps, kCmdBufferIndex, 0, 1);
+
+            const uint32_t benchmarkFrameIndex = readbackFrameIndex % kBenchmarkFrameCount;
+
+            uint32_t readbackShaderId = (readbackFrameIndex / kBenchmarkFrameCount) % kShaderCount;
+
+            const ShaderBytecode *readbackShaderBytecode = NULL;
+
+            if (readbackShaderId >= _countof(GShaderBytecodesNoWaveIntrinsics))
+                readbackShaderBytecode = &GShaderBytecodes[readbackShaderId - _countof(GShaderBytecodesNoWaveIntrinsics)];
+            else
+                readbackShaderBytecode = &GShaderBytecodesNoWaveIntrinsics[readbackShaderId];
+
+            const uint32_t readbackKernelSize = 1u << readbackShaderBytecode->kernelSizeLog2;
+            const uint32_t readbackTGroupSize = 1u << readbackShaderBytecode->tgroupSizeLog2;
+
+            /** if it's a first benchmark run for currently selected shader variant, initialise 'perfData' */
+            if (benchmarkFrameIndex == 0)
             {
-                randomSortInput[i] = i;
-            }
-            d3d12aid_MappedBuffer_Append(&sortInput, 0, randomSortInput, sizeof(uint32_t) * kSortKeysPerDispatch);
-
-            const uint32_t kShaderMaxCount = _countof(GShaderBytecodesNoWaveIntrinsics) + _countof(GShaderBytecodes);
-
-            // We test kernels w/ and w/o wave intrinsics support if possible
-            const uint32_t kShaderCount = _countof(GShaderBytecodesNoWaveIntrinsics) + (options1.WaveOps ? _countof(GShaderBytecodes) : 0);
-
-            d3d12aid_ComputeRsPs rspsBitonicSort[kShaderMaxCount];
-
-            for (uint32_t i = 0; i < _countof(GShaderBytecodesNoWaveIntrinsics); ++i)
-            {
-                d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i], device, GShaderBytecodesNoWaveIntrinsics[i].shaderBytecode, GShaderBytecodesNoWaveIntrinsics[i].shaderBytecodeSizeInBytes);
-            }
-
-            for (uint32_t i = 0; i < _countof(GShaderBytecodes); ++i)
-            {
-                d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i + _countof(GShaderBytecodesNoWaveIntrinsics)], device, GShaderBytecodes[i].shaderBytecode, GShaderBytecodes[i].shaderBytecodeSizeInBytes);
-            }
-
-            printf("Created D3D12 Resources and PSOs ...\n");
-
-            perfData_PrintHeader();
-
-            const uint32_t kFrameCount = kBenchmarkFrameCount * kShaderCount + kCmdBufferInFlight;
-
-            uint32_t kCmdBufferIndex = 0;
-            for (uint32_t frameIndex = 0; frameIndex < kFrameCount; ++frameIndex)
-            {
-                // run each Shader/Kernel every 'kBenchmarkFrameCount' frames
-                const uint32_t dispatchShaderId = (frameIndex / kBenchmarkFrameCount) % kShaderCount;
-                const ShaderBytecode *dispatchShaderBytecode = NULL;
-
-                if (dispatchShaderId >= _countof(GShaderBytecodesNoWaveIntrinsics))
-                    dispatchShaderBytecode = &GShaderBytecodes[dispatchShaderId - _countof(GShaderBytecodesNoWaveIntrinsics)];
-                else
-                    dispatchShaderBytecode = &GShaderBytecodesNoWaveIntrinsics[dispatchShaderId];
-
-                const uint32_t dispatchKernelSize = 1u << dispatchShaderBytecode->kernelSizeLog2;
-                const uint32_t dispatchTGroupSize = 1u << dispatchShaderBytecode->tgroupSizeLog2;
-
-                // use only frame_0 of each benchmark
-                if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
-                {
-                    wchar_t buffer[256];
-                    swprintf(buffer, _countof(buffer), L"%c:\\tg_bitonic_kernel_%u_tgroup_%u_waveintr_%u_venId_0x%04x_devId_0x%04x_revId_0x%02x_%s.wpix", sharedData->captureDrive, dispatchKernelSize, dispatchTGroupSize, dispatchShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 1 : 0, desc->VendorId, desc->DeviceId, desc->Revision, desc->Description);
-                    PIXCaptureParameters params;
-                    params.GpuCaptureParameters.FileName = buffer;
-                    PIXBeginCapture(PIX_CAPTURE_GPU, &params);
-                }
-
-                ID3D12GraphicsCommandList *cmdList = d3d12aid_CmdQueue_StartCmdList(&queue, 0);
-
-                if (frameIndex == 0)
-                {
-                    d3d12aid_MappedBuffer_Transfer(cmdList, &sortInput, 0);
-
-                    D3D12_RESOURCE_BARRIER barrier;
-                    d3d12aid_MappedBuffer_EndTransfer(&barrier, &sortInput, D3D12_RESOURCE_STATE_GENERIC_READ);
-                    cmdList->ResourceBarrier(1, &barrier);
-                }
-
-                d3d12aid_ComputeRsPs_Set(&rspsBitonicSort[dispatchShaderId], cmdList);
-                cmdList->SetComputeRootShaderResourceView(0, sortInput.bufGpu->GetGPUVirtualAddress());
-                cmdList->SetComputeRootUnorderedAccessView(1, sortOutput.bufGpu->GetGPUVirtualAddress());
-                cmdList->SetComputeRoot32BitConstant(2, options1.TotalLaneCount, 0);
-
-                const uint32_t dispatchKernelCount = (kSortKeysPerDispatch + dispatchKernelSize - 1) >> dispatchShaderBytecode->kernelSizeLog2;
-                const uint32_t dispatchKernelCountY = dispatchKernelCount / options1.TotalLaneCount;
-                const uint32_t dispatchKernelCountX = options1.TotalLaneCount;
-
-                d3d12aid_Timestamps_Push(&timestamps, cmdList);
-                cmdList->Dispatch(dispatchKernelCountX, dispatchKernelCountY, 1);
-                d3d12aid_Timestamps_Push(&timestamps, cmdList);
-
-                {
-                    D3D12_RESOURCE_BARRIER barrier;
-                    d3d12aid_MappedBuffer_BeginTransfer(&barrier, &sortOutput, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                    cmdList->ResourceBarrier(1, &barrier);
-                }
-                d3d12aid_MappedBuffer_Transfer(cmdList, &sortOutput, kCmdBufferIndex);
-
-                if (frameIndex >= kCmdBufferInFlight)
-                {
-                    const uint32_t readbackFrameIndex = frameIndex - kCmdBufferInFlight;
-                    const uint64_t gpuTimestampDelta = d3d12aid_Timestamps_GetDelta(&timestamps, kCmdBufferIndex, 0, 1);
-
-                    const uint32_t benchmarkFrameIndex = readbackFrameIndex % kBenchmarkFrameCount;
-
-                    uint32_t readbackShaderId = (readbackFrameIndex / kBenchmarkFrameCount) % kShaderCount;
-
-                    const ShaderBytecode *readbackShaderBytecode = NULL;
-
-                    if (readbackShaderId >= _countof(GShaderBytecodesNoWaveIntrinsics))
-                        readbackShaderBytecode = &GShaderBytecodes[readbackShaderId - _countof(GShaderBytecodesNoWaveIntrinsics)];
-                    else
-                        readbackShaderBytecode = &GShaderBytecodesNoWaveIntrinsics[readbackShaderId];
-
-                    const uint32_t readbackKernelSize = 1u << readbackShaderBytecode->kernelSizeLog2;
-                    const uint32_t readbackTGroupSize = 1u << readbackShaderBytecode->tgroupSizeLog2;
-
-                    /** if it's a first benchmark run for currently selected shader variant, initialise 'perfData' */
-                    if (benchmarkFrameIndex == 0)
-                    {
-                        perfData_Init(&perfData, gpuTimestampFreq);
-                    }
-
-                    perfData_AddSample(&perfData, gpuTimestampDelta);
-
-                    /** if it's a the last benchmark run for currently selected shader variant, dump 'perfData' information */
-                    if (benchmarkFrameIndex == kBenchmarkFrameCount - 1u)
-                    {
-                        //const uint32_t readbackKernelCount = (kSortKeysPerDispatch + readbackKernelSize - 1) >> readbackShaderBytecode->kernelSizeLog2;
-                        printf("[KernelSize=%4u, TGroupSize=%4u, NoWaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 0 : 1);
-                        // Per Lane
-                        //perfData_Print(&perfData, readbackKernelCount << GShaderBytecodes[readbackShaderId].tgroupSizeLog2);
-
-                        // Per TG
-                        //perfData_Print(&perfData, readbackKernelCount);
-
-                        // Per Elem
-                        perfData_Print(&perfData, kSortKeysPerDispatch);
-                    }
-
-                    const uint32_t *readbackData = (const uint32_t *)sortOutput.bufMem[kCmdBufferIndex];
-                    for (uint32_t i = 0; i < kSortKeysPerDispatch; i += readbackKernelSize)
-                    {
-                        for (uint32_t j = i; j < i + readbackKernelSize - 1; ++j)
-                        {
-                            D3D12AID_ASSERT(readbackData[j] >= readbackData[j + 1]);
-                        }
-                    }
-                }
-
-                d3d12aid_Timestamps_AdvanceFrame(&timestamps, cmdList);
-                d3d12aid_CmdQueue_SubmitCmdList(&queue, 0);
-
-                if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
-                {
-                    PIXEndCapture(FALSE);
-                }
-
-                kCmdBufferIndex = (kCmdBufferIndex + 1) % kCmdBufferInFlight;
+                perfData_Init(&perfData, gpuTimestampFreq);
             }
 
-            d3d12aid_CmdQueue_CpuWaitForGpuIdle(&queue);
+            perfData_AddSample(&perfData, gpuTimestampDelta);
 
-            for (uint32_t i = 0; i < kShaderCount; ++i)
+            /** if it's a the last benchmark run for currently selected shader variant, dump 'perfData' information */
+            if (benchmarkFrameIndex == kBenchmarkFrameCount - 1u)
             {
-                d3d12aid_ComputeRsPs_Release(&rspsBitonicSort[i]);
+                //const uint32_t readbackKernelCount = (kSortKeysPerDispatch + readbackKernelSize - 1) >> readbackShaderBytecode->kernelSizeLog2;
+                printf("[KernelSize=%4u, TGroupSize=%4u, NoWaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 0 : 1);
+                // Per Lane
+                //perfData_Print(&perfData, readbackKernelCount << GShaderBytecodes[readbackShaderId].tgroupSizeLog2);
+
+                // Per TG
+                //perfData_Print(&perfData, readbackKernelCount);
+
+                // Per Elem
+                perfData_Print(&perfData, kSortKeysPerDispatch);
             }
 
-            d3d12aid_MappedBuffer_Release(&sortOutput);
-            d3d12aid_MappedBuffer_Release(&sortInput);
-            d3d12aid_Timestamps_Release(&timestamps);
+            const uint32_t *readbackData = (const uint32_t *)sortOutput.bufMem[kCmdBufferIndex];
+            for (uint32_t i = 0; i < kSortKeysPerDispatch; i += readbackKernelSize)
+            {
+                for (uint32_t j = i; j < i + readbackKernelSize - 1; ++j)
+                {
+                    D3D12AID_ASSERT(readbackData[j] >= readbackData[j + 1]);
+                }
+            }
+        }
 
-            d3d12aid_CmdQueue_Release(&queue);
-            printf("Destroyed D3D12 Objects ...\n");
+        d3d12aid_Timestamps_AdvanceFrame(&timestamps, cmdList);
+        d3d12aid_CmdQueue_SubmitCmdList(&queue, 0);
+
+        if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
+        {
+            PIXEndCapture(FALSE);
+        }
+
+        kCmdBufferIndex = (kCmdBufferIndex + 1) % kCmdBufferInFlight;
+    }
+
+    d3d12aid_CmdQueue_CpuWaitForGpuIdle(&queue);
+
+    for (uint32_t i = 0; i < kShaderCount; ++i)
+    {
+        d3d12aid_ComputeRsPs_Release(&rspsBitonicSort[i]);
+    }
+
+    d3d12aid_MappedBuffer_Release(&sortOutput);
+    d3d12aid_MappedBuffer_Release(&sortInput);
+    d3d12aid_Timestamps_Release(&timestamps);
+
+    d3d12aid_CmdQueue_Release(&queue);
+    printf("Destroyed D3D12 Objects ...\n");
 }
