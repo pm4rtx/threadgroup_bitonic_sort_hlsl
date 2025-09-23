@@ -91,6 +91,10 @@ if "%no_shaders%"=="1" (
     popd
 )
 
+set msvc_compile_flags_std=/c /nologo /Zi /GR- /EHsc /Zl /permissive- /Wall /WX /WL /wd4514 /I %SRC_DIR%\.build_shaders
+set msvc_compile_flags_dbg=/Od /GS /RTCscu /D_ALLOW_RTCc_IN_STL=1 /D_DEBUG=1 /wd5045 %msvc_compile_flags_std%
+set msvc_compile_flags_opt=/O2 /GL /GS- /DNDEBUG=1 /wd4710 /wd4711 %msvc_compile_flags_std%
+
 if "%release%"=="1" (
     echo [building Release]
     call :build_config release
@@ -138,13 +142,11 @@ exit /b 0
 exit /b 0
 
 :compile_debug
-    for %%a in (%1\*.cpp) do (cl /c /nologo /I %1\.build_shaders /I %1\external /Od /Zi /Fo%%~na.obj /Fd%%~na.pdb %%a)
+    for %%a in (%1\*.cpp) do (cl %msvc_compile_flags_dbg% /Fo%%~na.obj /Fd%%~na.pdb %%a)
 exit /b 0
 
 :compile_release
-    rem for %%a in (%1\*.cpp) do (cl /c /nologo /I %1\.build_shaders /I %1\external /O2 /Zi /Fo%%~na.obj %%a)
-
-    for %%a in (%1\*.cpp) do (cl /c /nologo /I %1\.build_shaders /I %1\external /O2 /GS- /GL /wd4710 /wd4711 /Zi /c /nologo /EHsc /GR- /Zl /Wall /WX /WL /wd4514 /Fo%%~na.obj %%a)
+    for %%a in (%1\*.cpp) do (cl %msvc_compile_flags_opt% /Fo%%~na.obj %%a)
 exit /b 0
 
 :link_debug_exe
