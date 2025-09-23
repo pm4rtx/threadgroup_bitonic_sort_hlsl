@@ -209,31 +209,6 @@ static void unload_module(module_t *inout_module)
         fn##name = cvt.typedFn;                                         \
     }
 
-#define D3D12_CHECK(call)                           \
-    do                                              \
-    {                                               \
-        HRESULT hr = call;                          \
-        if (S_OK != hr)                             \
-        {                                           \
-            printf("S_OK != 0x%08lx " #call "\n", hr); \
-            if (IsDebuggerPresent())                \
-                __debugbreak();                     \
-        }                                           \
-    }                                               \
-    while(0)
-
-#define ASSERT(cond)                                \
-    do                                              \
-    {                                               \
-        if (!(cond))                                \
-        {                                           \
-            puts("Assert with condition "#cond" failed.");\
-            if (IsDebuggerPresent())                \
-                __debugbreak();                     \
-        }                                           \
-    }                                               \
-    while(0)
-
 DECLARE_IMPORT(CreateDXGIFactory2, UINT Flags, REFIID riid, void **ppFactory);
 DECLARE_IMPORT(D3D12CreateDevice, IUnknown *pAdapter, D3D_FEATURE_LEVEL MinimumFeatureLevel, REFIID riid, void **ppDevice);
 
@@ -421,23 +396,23 @@ int main(int argc, char **argv)
     load_D3D12CreateDevice(&d3d12);
 
     IDXGIFactory7 *factory = NULL;
-    D3D12_CHECK(fnCreateDXGIFactory2(0, IID_PPV_ARGS(&factory)));
+    D3D12AID_CHECK(fnCreateDXGIFactory2(0, IID_PPV_ARGS(&factory)));
 
     IDXGIAdapter1 *adapter = NULL;
     for (uint32_t adapterIdx = 0; DXGI_ERROR_NOT_FOUND != factory->EnumAdapters1(adapterIdx, &adapter); ++adapterIdx)
     {
         DXGI_ADAPTER_DESC1 desc;
-        D3D12_CHECK(adapter->GetDesc1(&desc));
+        D3D12AID_CHECK(adapter->GetDesc1(&desc));
         if (desc.VendorId != 0x1414)
         {
             printf("Found: vendorId=0x%04x, deviceId=0x%04x, revision=0x%02x, %lS\n", desc.VendorId, desc.DeviceId, desc.Revision, desc.Description);
 
             ID3D12Device *device = NULL;
-            D3D12_CHECK(fnD3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
-            D3D12_CHECK(device->SetStablePowerState(TRUE));
+            D3D12AID_CHECK(fnD3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
+            D3D12AID_CHECK(device->SetStablePowerState(TRUE));
 
             D3D12_FEATURE_DATA_D3D12_OPTIONS1 options1;
-            D3D12_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
+            D3D12AID_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
             printf("Total Lane Count %u\n", options1.TotalLaneCount);
 
             const uint32_t kSortKeysPerDispatch = options1.TotalLaneCount * kMaxSortKeysPerTg;
@@ -448,7 +423,7 @@ int main(int argc, char **argv)
             printf("Created D3D12 Command Queue, Allocators and Lists ...\n");
 
             uint64_t gpuTimestampFreq = 0;
-            D3D12_CHECK(queue.queue->GetTimestampFrequency(&gpuTimestampFreq));
+            D3D12AID_CHECK(queue.queue->GetTimestampFrequency(&gpuTimestampFreq));
 
             PerfData perfData;
 
@@ -594,7 +569,7 @@ int main(int argc, char **argv)
                     {
                         for (uint32_t j = i; j < i + readbackKernelSize - 1; ++j)
                         {
-                            ASSERT(readbackData[j] >= readbackData[j + 1]);
+                            D3D12AID_ASSERT(readbackData[j] >= readbackData[j + 1]);
                         }
                     }
                 }
@@ -622,7 +597,7 @@ int main(int argc, char **argv)
             d3d12aid_Timestamps_Release(&timestamps);
 
             d3d12aid_CmdQueue_Release(&queue);
-            D3D12_CHECK(device->SetStablePowerState(FALSE));
+            D3D12AID_CHECK(device->SetStablePowerState(FALSE));
             D3D12AID_SAFE_RELEASE(device);
             printf("Destroyed D3D12 Objects ...\n");
         }
