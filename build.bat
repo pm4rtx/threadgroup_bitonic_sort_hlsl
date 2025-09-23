@@ -95,6 +95,32 @@ set msvc_compile_flags_std=/c /nologo /Zi /GR- /EHsc /Zl /permissive- /Wall /WX 
 set msvc_compile_flags_dbg=/Od /GS /RTCscu /D_ALLOW_RTCc_IN_STL=1 /D_DEBUG=1 /wd5045 %msvc_compile_flags_std%
 set msvc_compile_flags_opt=/O2 /GL /GS- /DNDEBUG=1 /wd4710 /wd4711 %msvc_compile_flags_std%
 
+set msvc_link_flags_std=/nologo /incremental:no /nodefaultlib /subsystem:console /machine:x64 /debug
+set msvc_link_flags_opt=/ltcg %msvc_link_flags_std%
+set msvc_link_libs_std=kernel32.lib shell32.lib ole32.lib
+
+:: According to https://learn.microsoft.com/en-us/cpp/c-runtime-library/crt-library-features?view=msvc-170
+::      - msvcrt.lib        - static library for the native CRT startup for use with UCRT and vcruntime DLLs
+::      - ucrt.lib          - DLL import library for the UCRT
+::      - vcruntime.lib     - DLL import library for the vcruntime
+::
+::      - libcmt.lib        - statically links the native CRT start into your code
+::      - libucrt.lib       - statically links the UCRT into your code
+::      - libvcruntime.lib  - VCRuntime statically linked into your code
+:: VCRuntime - contains Visual C++ CRT implemtation-specific code: exception handling and debugging support,
+:: runtime checks and type information, implementation details, and certain extended library functions.
+:: The VCRuntime library version needs to match the version of the compiler you're using.
+::
+:: set msvc_link_libs_opt=msvcrt.lib ucrt.lib vcruntime.lib
+:: set msvc_link_libs_opt=libcmt.lib libucrt.lib libvcruntime.lib
+
+set msvc_link_libs_opt=libcmt.lib libucrt.lib libvcruntime.lib
+set msvc_link_libs_dbg=msvcrtd.lib ucrtd.lib vcruntimed.lib
+::libcmtd.lib libucrtd.lib libvcruntimed.lib
+
+set msvc_link_opt=call link %msvc_link_flags_opt% %msvc_link_libs_std% %msvc_link_libs_opt%
+set msvc_link_dbg=call link %msvc_link_flags_std% %msvc_link_libs_std% %msvc_link_libs_dbg%
+
 if "%release%"=="1" (
     echo [building Release]
     call :build_config release
@@ -150,11 +176,11 @@ exit /b 0
 exit /b 0
 
 :link_debug_exe
-    link /nologo /incremental:no /nodefaultlib /subsystem:console /machine:x64 /debug %* vcruntimed.lib ucrtd.lib msvcrtd.lib kernel32.lib ole32.lib shell32.lib
+    %msvc_link_dbg% %*
 exit /b 0
 
 :link_release_exe
-    link /ltcg /nologo /incremental:no /nodefaultlib /subsystem:console /machine:x64 /debug %* vcruntime.lib ucrt.lib msvcrt.lib kernel32.lib ole32.lib shell32.lib
+    %msvc_link_opt% %*
 exit /b 0
 
 :fetch_nuget_package
