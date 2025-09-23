@@ -212,6 +212,41 @@ static void unload_module(module_t *inout_module)
 DECLARE_IMPORT(CreateDXGIFactory2, UINT Flags, REFIID riid, void **ppFactory);
 DECLARE_IMPORT(D3D12CreateDevice, IUnknown *pAdapter, D3D_FEATURE_LEVEL MinimumFeatureLevel, REFIID riid, void **ppDevice);
 
+typedef void benchmark_ForEachDeviceCback(IDXGIAdapter *adapter, const DXGI_ADAPTER_DESC1 *desc, ID3D12Device *device, void *userdata);
+static int benchmark_ForEachDevice(benchmark_ForEachDeviceCback *callback, void *userdata)
+{
+    module_t d3d12;
+    module_t dxgi;
+    IDXGIFactory7 *factory = NULL;
+
+    load_module(&dxgi, L"dxgi.dll");
+    load_module(&d3d12, L"d3d12.dll");
+    load_CreateDXGIFactory2(&dxgi);
+    load_D3D12CreateDevice(&d3d12);
+    D3D12AID_CHECK(fnCreateDXGIFactory2(0, IID_PPV_ARGS(&factory)));
+    IDXGIAdapter1 *adapter = NULL;
+    for (uint32_t adapterIdx = 0; DXGI_ERROR_NOT_FOUND != factory->EnumAdapters1(adapterIdx, &adapter); ++adapterIdx)
+    {
+        DXGI_ADAPTER_DESC1 desc;
+        D3D12AID_CHECK(adapter->GetDesc1(&desc));
+        if (desc.VendorId != 0x1414)
+        {
+            printf("Found: vendorId=0x%04x, deviceId=0x%04x, revision=0x%02x, %lS\n", desc.VendorId, desc.DeviceId, desc.Revision, desc.Description);
+            ID3D12Device *device = NULL;
+            D3D12AID_CHECK(fnD3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
+            D3D12AID_CHECK(device->SetStablePowerState(TRUE));
+            callback(adapter, &desc, device, userdata);
+            D3D12AID_CHECK(device->SetStablePowerState(FALSE));
+            D3D12AID_SAFE_RELEASE(device);
+        }
+        D3D12AID_SAFE_RELEASE(adapter);
+    }
+    D3D12AID_SAFE_RELEASE(factory);
+    unload_module(&d3d12);
+    unload_module(&dxgi);
+    return 0;
+}
+
 struct ShaderBytecode
 {
     uint32_t    kernelSizeLog2;
@@ -366,51 +401,43 @@ static void perfData_Print(const PerfData *inPerfData, uint32_t workItemCount)
     );
 }
 
-static const uint32_t kCmdBufferInFlight = 3;
+typedef struct benchmark_SharedData
+{
+    uint32_t options;
+    char     captureDrive;
+    char     padding[3];
+} benchmark_SharedData;
 
+static void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_ADAPTER_DESC1 *desc, ID3D12Device *device, void *userdata);
+
+static const uint32_t kCmdBufferInFlight = 3;
 static const uint32_t kMaxSortKeysPerTg = 4096;
 static const uint32_t kBenchmarkFrameCount = 10;
 
 int main(int argc, char **argv)
 {
-    module_t d3d12;
-    module_t dxgi;
-    load_module(&dxgi, L"dxgi.dll");
-    load_module(&d3d12, L"d3d12.dll");
-
-    uint32_t options = 0;
+    benchmark_SharedData sharedData;
+    sharedData.options = 0;
     for (int argi = 1; argi < argc; ++argi)
     {
         if (0 == strcmp("--pixcaptures", argv[argi]))
         {
-            options ^= 0x1u;
+            sharedData.options ^= 0x1u;
         }
     }
 
-    if (options & 0x1u)
+    if (sharedData.options & 0x1u)
     {
         PIXLoadLatestWinPixGpuCapturerLibrary();
     }
+    sharedData.captureDrive = argv[0][0];
+    return benchmark_ForEachDevice(benchmark_threadgroup_bitonic_sort_Cback, &sharedData);
+}
 
-    load_CreateDXGIFactory2(&dxgi);
-    load_D3D12CreateDevice(&d3d12);
-
-    IDXGIFactory7 *factory = NULL;
-    D3D12AID_CHECK(fnCreateDXGIFactory2(0, IID_PPV_ARGS(&factory)));
-
-    IDXGIAdapter1 *adapter = NULL;
-    for (uint32_t adapterIdx = 0; DXGI_ERROR_NOT_FOUND != factory->EnumAdapters1(adapterIdx, &adapter); ++adapterIdx)
-    {
-        DXGI_ADAPTER_DESC1 desc;
-        D3D12AID_CHECK(adapter->GetDesc1(&desc));
-        if (desc.VendorId != 0x1414)
-        {
-            printf("Found: vendorId=0x%04x, deviceId=0x%04x, revision=0x%02x, %lS\n", desc.VendorId, desc.DeviceId, desc.Revision, desc.Description);
-
-            ID3D12Device *device = NULL;
-            D3D12AID_CHECK(fnD3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
-            D3D12AID_CHECK(device->SetStablePowerState(TRUE));
-
+void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_ADAPTER_DESC1 *desc, ID3D12Device *device, void *userdata)
+{
+            (void)adapter;
+            const benchmark_SharedData *sharedData = (const benchmark_SharedData *)userdata;
             D3D12_FEATURE_DATA_D3D12_OPTIONS1 options1;
             D3D12AID_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
             printf("Total Lane Count %u\n", options1.TotalLaneCount);
@@ -482,10 +509,10 @@ int main(int argc, char **argv)
                 const uint32_t dispatchTGroupSize = 1u << dispatchShaderBytecode->tgroupSizeLog2;
 
                 // use only frame_0 of each benchmark
-                if ((options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
+                if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
                 {
                     wchar_t buffer[256];
-                    swprintf(buffer, _countof(buffer), L"%c:\\tg_bitonic_kernel_%u_tgroup_%u_waveintr_%u_venId_0x%04x_devId_0x%04x_revId_0x%02x_%s.wpix", argv[0][0], dispatchKernelSize, dispatchTGroupSize, dispatchShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 1 : 0, desc.VendorId, desc.DeviceId, desc.Revision, desc.Description);
+                    swprintf(buffer, _countof(buffer), L"%c:\\tg_bitonic_kernel_%u_tgroup_%u_waveintr_%u_venId_0x%04x_devId_0x%04x_revId_0x%02x_%s.wpix", sharedData->captureDrive, dispatchKernelSize, dispatchTGroupSize, dispatchShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 1 : 0, desc->VendorId, desc->DeviceId, desc->Revision, desc->Description);
                     PIXCaptureParameters params;
                     params.GpuCaptureParameters.FileName = buffer;
                     PIXBeginCapture(PIX_CAPTURE_GPU, &params);
@@ -577,7 +604,7 @@ int main(int argc, char **argv)
                 d3d12aid_Timestamps_AdvanceFrame(&timestamps, cmdList);
                 d3d12aid_CmdQueue_SubmitCmdList(&queue, 0);
 
-                if ((options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
+                if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
                 {
                     PIXEndCapture(FALSE);
                 }
@@ -597,16 +624,5 @@ int main(int argc, char **argv)
             d3d12aid_Timestamps_Release(&timestamps);
 
             d3d12aid_CmdQueue_Release(&queue);
-            D3D12AID_CHECK(device->SetStablePowerState(FALSE));
-            D3D12AID_SAFE_RELEASE(device);
             printf("Destroyed D3D12 Objects ...\n");
-        }
-        D3D12AID_SAFE_RELEASE(adapter);
-    }
-
-    D3D12AID_SAFE_RELEASE(factory);
-
-    unload_module(&d3d12);
-    unload_module(&dxgi);
-    return 0;
 }
