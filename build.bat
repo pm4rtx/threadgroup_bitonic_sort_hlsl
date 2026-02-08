@@ -91,8 +91,16 @@ if "%no_shaders%"=="1" (
     popd
 )
 
+:: for a set of 'standard' ('std') flags that are shared between Debug/Release build for Microsoft Visual C++ compiler, we disable only
+::      -4514 - 'function' : unreferenced inline function has been removed
+::      -4505 - 'function' : unreferenced local function has been removed
 set msvc_compile_flags_std=/nologo /Zi /GR- /EHsc /Zl /permissive- /Wall /WX /WL /wd4514 /wd4505 /I %SRC_DIR%\.build_shaders
+:: for a set of flags for Debug build for Microsoft Visual C++ compiler, we disable
+::      - 5045 - Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
 set msvc_compile_flags_dbg=/Od /GS /RTCscu /D_ALLOW_RTCc_IN_STL=1 /D_DEBUG=1 /wd5045 %msvc_compile_flags_std%
+:: for a set of flags for Release/Optimised build for Microsoft Visual C++ compiler, we disable
+::      - 4710 - 'function' : function not inlined
+::      - 4711 - function 'function' selected for inline expansion
 set msvc_compile_flags_opt=/O2 /GL /GS- /DNDEBUG=1 /wd4710 /wd4711 %msvc_compile_flags_std%
 
 set msvc_link_flags_std=/nologo /incremental:no /nodefaultlib /subsystem:console /machine:x64 /debug
