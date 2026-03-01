@@ -770,7 +770,7 @@ D3D12AID_API void d3d12aid_MappedBuffer_Append(d3d12aid_MappedBuffer *inoutBuffe
     {
         D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
         D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
-        D3D12AID_ASSERT(inoutBuffer->sizeInBytes - inoutBuffer->offsInBytes >= sizeInBytes);
+        D3D12AID_ASSERT(inoutBuffer->sizeInBytes >= inoutBuffer->offsInBytes + sizeInBytes);
 
         memcpy((char *)inoutBuffer->bufMem[frameIndex] + inoutBuffer->offsInBytes, data, sizeInBytes);
         inoutBuffer->offsInBytes += sizeInBytes;
@@ -783,7 +783,7 @@ D3D12AID_API void d3d12aid_MappedBuffer_Skip(d3d12aid_MappedBuffer* inoutBuffer,
     {
         D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
         D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
-        D3D12AID_ASSERT(inoutBuffer->sizeInBytes - inoutBuffer->offsInBytes <= sizeInBytes);
+        D3D12AID_ASSERT(inoutBuffer->sizeInBytes >= inoutBuffer->offsInBytes + sizeInBytes);
 
         memset((char*)inoutBuffer->bufMem[frameIndex] + inoutBuffer->offsInBytes, 0, sizeInBytes);
         inoutBuffer->offsInBytes += sizeInBytes;
