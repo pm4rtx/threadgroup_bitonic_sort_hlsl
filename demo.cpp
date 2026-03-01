@@ -541,6 +541,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
         randomSortInput[i] = i;
     }
     d3d12aid_MappedBuffer_Append(&sortInput, 0, randomSortInput, sizeof(uint32_t) * kSortKeysPerDispatch);
+    free(randomSortInput);
 
     const uint32_t kShaderMaxCount = _countof(GShaderBytecodesNoWaveIntrinsics) + _countof(GShaderBytecodes);
 
