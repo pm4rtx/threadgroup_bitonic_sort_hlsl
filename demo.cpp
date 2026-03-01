@@ -162,13 +162,15 @@ COMPILER_WARNING_POP()
 #include <shader_threadgroup_bitonic_sort_12_10_1.h>
 
 #define USE_PIX 1
-COMPILER_WARNING_PUSH()
-COMPILER_WARNING_DISABLE_MSVC(4820) /** warning C4820: 'Name A' : 'N' bytes padding added after data member 'Name B' */
-COMPILER_WARNING_DISABLE_MSVC(4201) /** warning C4201: nonstandard extension used : nameless struct/union */
-COMPILER_WARNING_DISABLE_MSVC(4365) /** warning C4365: 'initializing': conversion from 'type A' to 'type B' signed/unsigned mismatch */
-COMPILER_WARNING_DISABLE_MSVC(5039) /** warning C5039: 'Name A': pointer or reference to potentially throwing function passed to extern C function under -EHc. Undefined behavior may occur if this function throws an exception. Note: to implify migration, consider the temporary use of /Wv:18 flag with the version of the compiler with which you used to build without warnings */
-#include <pix3.h>
-COMPILER_WARNING_POP()
+#if USE_PIX
+    COMPILER_WARNING_PUSH()
+    COMPILER_WARNING_DISABLE_MSVC(4820) /** warning C4820: 'Name A' : 'N' bytes padding added after data member 'Name B' */
+    COMPILER_WARNING_DISABLE_MSVC(4201) /** warning C4201: nonstandard extension used : nameless struct/union */
+    COMPILER_WARNING_DISABLE_MSVC(4365) /** warning C4365: 'initializing': conversion from 'type A' to 'type B' signed/unsigned mismatch */
+    COMPILER_WARNING_DISABLE_MSVC(5039) /** warning C5039: 'Name A': pointer or reference to potentially throwing function passed to extern C function under -EHc. Undefined behavior may occur if this function throws an exception. Note: to implify migration, consider the temporary use of /Wv:18 flag with the version of the compiler with which you used to build without warnings */
+#   include <pix3.h>
+    COMPILER_WARNING_POP()
+#endif
 
 COMPILER_WARNING_PUSH()
 COMPILER_WARNING_DISABLE_MSVC19(5045) /** warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified */
@@ -489,10 +491,12 @@ int main(int argc, char **argv)
         }
     }
 
+#if USE_PIX
     if (sharedData.options & 0x1u)
     {
         PIXLoadLatestWinPixGpuCapturerLibrary();
     }
+#endif
     sharedData.captureDrive = argv[0][0];
     return benchmark_ForEachDevice(benchmark_threadgroup_bitonic_sort_Cback, &sharedData);
 }
@@ -500,6 +504,7 @@ int main(int argc, char **argv)
 void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_ADAPTER_DESC1 *desc, ID3D12Device *device, void *userdata)
 {
     (void)adapter;
+    (void)desc;
     const benchmark_SharedData *sharedData = (const benchmark_SharedData *)userdata;
     D3D12_FEATURE_DATA_D3D12_OPTIONS1 options1;
     D3D12AID_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
@@ -572,6 +577,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
         const uint32_t dispatchTGroupSize = 1u << dispatchShaderBytecode->tgroupSizeLog2;
 
         // use only frame_0 of each benchmark
+#if USE_PIX
         if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
         {
             wchar_t buffer[256];
@@ -580,6 +586,9 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
             params.GpuCaptureParameters.FileName = buffer;
             PIXBeginCapture(PIX_CAPTURE_GPU, &params);
         }
+#else
+        (void)sharedData;
+#endif
 
         ID3D12GraphicsCommandList *cmdList = d3d12aid_CmdQueue_StartCmdList(&queue, 0);
 
@@ -667,10 +676,12 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
         d3d12aid_Timestamps_AdvanceFrame(&timestamps, cmdList);
         d3d12aid_CmdQueue_SubmitCmdList(&queue, 0);
 
+#if USE_PIX
         if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
         {
             PIXEndCapture(FALSE);
         }
+#endif
 
         kCmdBufferIndex = (kCmdBufferIndex + 1) % kCmdBufferInFlight;
     }
