@@ -91,8 +91,16 @@ if "%no_shaders%"=="1" (
     popd
 )
 
-set msvc_compile_flags_std=/c /nologo /Zi /GR- /EHsc /Zl /permissive- /Wall /WX /WL /wd4514 /I %SRC_DIR%\.build_shaders
+:: for a set of 'standard' ('std') flags that are shared between Debug/Release build for Microsoft Visual C++ compiler, we disable only
+::      -4514 - 'function' : unreferenced inline function has been removed
+::      -4505 - 'function' : unreferenced local function has been removed
+set msvc_compile_flags_std=/nologo /Zi /GR- /EHsc /Zl /permissive- /Wall /WX /WL /wd4514 /wd4505 /I %SRC_DIR%\.build_shaders
+:: for a set of flags for Debug build for Microsoft Visual C++ compiler, we disable
+::      - 5045 - Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
 set msvc_compile_flags_dbg=/Od /GS /RTCscu /D_ALLOW_RTCc_IN_STL=1 /D_DEBUG=1 /wd5045 %msvc_compile_flags_std%
+:: for a set of flags for Release/Optimised build for Microsoft Visual C++ compiler, we disable
+::      - 4710 - 'function' : function not inlined
+::      - 4711 - function 'function' selected for inline expansion
 set msvc_compile_flags_opt=/O2 /GL /GS- /DNDEBUG=1 /wd4710 /wd4711 %msvc_compile_flags_std%
 
 set msvc_link_flags_std=/nologo /incremental:no /nodefaultlib /subsystem:console /machine:x64 /debug
@@ -137,17 +145,15 @@ goto :eof
     if not exist .build_%1 mkdir .build_%1
     pushd .build_%1
         :: copy the required DLLs if NuGet packages exist or were acquired
-        if defined d3d_bin_path if exist %d3d_bin_path%\D3D12Core.dll           copy /v /y /b %d3d_bin_path%\D3D12Core.dll .
-        if defined d3d_bin_path if exist %d3d_bin_path%\d3d12SDKLayers.dll      copy /v /y /b %d3d_bin_path%\d3d12SDKLayers.dll .
-        if defined pix_bin_path if exist %pix_bin_path%\WinPixEventRuntime.dll  copy /v /y /b %pix_bin_path%\WinPixEventRuntime.dll .
+        if defined d3d_bin_path if exist %d3d_bin_path%\D3D12Core.dll           copy /v /y /b %d3d_bin_path%\D3D12Core.dll . >nul
+        if defined d3d_bin_path if exist %d3d_bin_path%\d3d12SDKLayers.dll      copy /v /y /b %d3d_bin_path%\d3d12SDKLayers.dll . >nul
+        if defined pix_bin_path if exist %pix_bin_path%\WinPixEventRuntime.dll  copy /v /y /b %pix_bin_path%\WinPixEventRuntime.dll . >nul
 
-        :: compile C++
-        set objlst=
-        call :compile_%1 %SRC_DIR%
-        for %%a in (*.obj) do (
-            set objlst=%objlst% %%a
+        if "%1"=="debug" (
+            call cl.exe %msvc_compile_flags_dbg% ..\demo.cpp /link %msvc_link_flags_std% %msvc_link_libs_std% %msvc_link_libs_dbg% /out:demo_%1.exe
+        ) else if "%1"=="release" (
+            call cl.exe %msvc_compile_flags_opt% ..\demo.cpp /link %msvc_link_flags_opt% %msvc_link_libs_std% %msvc_link_libs_opt% /out:demo_%1.exe
         )
-        call :link_%1_exe /out:demo_%1.exe %objlst%
     popd
 exit /b 0
 
@@ -165,22 +171,6 @@ exit /b 0
     )
     %dxc_compile_cs% %args% -Fo shader_%dst%.cso -Fc shader_%dst%.asm -Fh shader_%dst%.h -Vn shader_%dst% -Fd shader_%dst%.pdb ..\%src%.hlsl
     endlocal
-exit /b 0
-
-:compile_debug
-    for %%a in (%1\*.cpp) do (cl %msvc_compile_flags_dbg% /Fo%%~na.obj /Fd%%~na.pdb %%a)
-exit /b 0
-
-:compile_release
-    for %%a in (%1\*.cpp) do (cl %msvc_compile_flags_opt% /Fo%%~na.obj %%a)
-exit /b 0
-
-:link_debug_exe
-    %msvc_link_dbg% %*
-exit /b 0
-
-:link_release_exe
-    %msvc_link_opt% %*
 exit /b 0
 
 :fetch_nuget_package
