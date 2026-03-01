@@ -40,6 +40,11 @@
 #       define COMPILER_WARNING_MSVC_PUSH()     COMPILER_PRAGMA_MSVC(warning(push))
 #       define COMPILER_WARNING_MSVC_POP()      COMPILER_PRAGMA_MSVC(warning(pop))
 #       define COMPILER_WARNING_DISABLE_MSVC(w) COMPILER_PRAGMA_MSVC(warning(disable : w))
+#       if _MSC_VER >= 1912
+#           define COMPILER_WARNING_DISABLE_MSVC1912(w) COMPILER_PRAGMA_MSVC(warning(disable : w))
+#       else
+#           define COMPILER_WARNING_DISABLE_MSVC1912(w)
+#       endif
 #       if _MSC_VER >= 1920
 #           define COMPILER_WARNING_DISABLE_MSVC19(w) COMPILER_PRAGMA_MSVC(warning(disable : w))
 #       else
@@ -84,6 +89,14 @@ COMPILER_WARNING_PUSH()
 COMPILER_WARNING_DISABLE_MSVC(4820) /** warning C4820: 'Name A' : 'N' bytes padding added after data member 'Name B' */
 COMPILER_WARNING_DISABLE_MSVC(4201) /** warning C4201: nonstandard extension used : nameless struct/union */
 #include <d3d12.h>
+COMPILER_WARNING_POP()
+
+COMPILER_WARNING_PUSH()
+COMPILER_WARNING_DISABLE_MSVC(4365) /** warning C4365:  '=': conversion from 'Type A' to 'Type B', signed/unsigned mismatch */
+COMPILER_WARNING_DISABLE_MSVC(4820) /** warning C4820: 'Name A' : 'N' bytes padding added after data member 'Name B' */
+COMPILER_WARNING_DISABLE_MSVC1912(5039)
+#define STB_SPRINTF_IMPLEMENTATION 1
+#include "stb_sprintf.h"
 COMPILER_WARNING_POP()
 
 #include <shader_threadgroup_bitonic_sort_1_1_0.h>
@@ -149,7 +162,6 @@ COMPILER_WARNING_POP()
 #include <shader_threadgroup_bitonic_sort_12_10_1.h>
 
 #define USE_PIX 1
-
 COMPILER_WARNING_PUSH()
 COMPILER_WARNING_DISABLE_MSVC(4820) /** warning C4820: 'Name A' : 'N' bytes padding added after data member 'Name B' */
 COMPILER_WARNING_DISABLE_MSVC(4201) /** warning C4201: nonstandard extension used : nameless struct/union */
@@ -160,6 +172,34 @@ COMPILER_WARNING_POP()
 
 COMPILER_WARNING_PUSH()
 COMPILER_WARNING_DISABLE_MSVC19(5045) /** warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified */
+
+static void debugPrint(const char *msg);
+static void debugPrintF(const char *format, ...);
+
+#define D3D12AID_CHECK(call)                            \
+    do                                                  \
+    {                                                   \
+        HRESULT hr = call;                              \
+        if (S_OK != hr)                                 \
+        {                                               \
+            debugPrintF("S_OK != 0x%08lx " #call "\n", hr);  \
+            if (IsDebuggerPresent())                    \
+                __debugbreak();                         \
+        }                                               \
+    }                                                   \
+    while(0)
+#define D3D12AID_ASSERT(cond)                               \
+    do                                                      \
+    {                                                       \
+        if (!(cond))                                        \
+        {                                                   \
+            debugPrint("Assert with condition "#cond" failed.");  \
+            if (IsDebuggerPresent())                        \
+                __debugbreak();                             \
+        }                                                   \
+    }                                                       \
+    while(0)
+
 #include "d3d12aid.h"
 COMPILER_WARNING_POP()
 
@@ -231,7 +271,7 @@ static int benchmark_ForEachDevice(benchmark_ForEachDeviceCback *callback, void 
         D3D12AID_CHECK(adapter->GetDesc1(&desc));
         if (desc.VendorId != 0x1414)
         {
-            printf("Found: vendorId=0x%04x, deviceId=0x%04x, revision=0x%02x, %lS\n", desc.VendorId, desc.DeviceId, desc.Revision, desc.Description);
+            //debugPrintF("Found: vendorId=0x%04x, deviceId=0x%04x, revision=0x%02x, %lS\n", desc.VendorId, desc.DeviceId, desc.Revision, desc.Description);
             ID3D12Device *device = NULL;
             D3D12AID_CHECK(fnD3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
             D3D12AID_CHECK(device->SetStablePowerState(TRUE));
@@ -245,6 +285,25 @@ static int benchmark_ForEachDevice(benchmark_ForEachDeviceCback *callback, void 
     unload_module(&d3d12);
     unload_module(&dxgi);
     return 0;
+}
+
+static void debugPrint(const char *msg)
+{
+    DWORD len = (DWORD)strlen(msg);
+    OutputDebugStringA(msg);
+    WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), msg, len, NULL, NULL);
+}
+
+static void debugPrintF(const char *format, ...)
+{
+    char buffer[1024];
+    int result;
+    va_list va;
+    va_start(va, format);
+    result = stbsp_vsnprintf(buffer, sizeof(buffer), format, va);
+    STBSP__NOTUSED(result);
+    debugPrint(buffer);
+    va_end(va);
 }
 
 struct ShaderBytecode
@@ -371,7 +430,7 @@ static void perfData_AddSample(PerfData *inoutPerfData, uint64_t sample)
 
 static void perfData_PrintHeader()
 {
-    printf("%*s | Min Time (us) | Max Time (us) | Mean Time (us) |       StdDev0 (us) |       StdDev1 (us) | Total Time (us) | Mean Time per Elem (ns) |\n", 54, "");
+    debugPrintF("%*s | Min Time (us) | Max Time (us) | Mean Time (us) |       StdDev0 (us) |       StdDev1 (us) | Total Time (us) | Mean Time per Elem (ns) |\n", 54, "");
 }
 
 static void perfData_Print(const PerfData *inPerfData, uint32_t workItemCount)
@@ -392,7 +451,7 @@ static void perfData_Print(const PerfData *inPerfData, uint32_t workItemCount)
 
     double avgTimeUsF64 = (double)avgTimeUs;
 
-    printf("| %13llu | %13llu | %14.3f | +/- %4.1f%% %8.3f | +/- %4.1f%% %8.3f | %15llu | %23.3f |\n",
+    debugPrintF("| %13llu | %13llu | %14.3f | +/- %4.1f%% %8.3f | +/- %4.1f%% %8.3f | %15llu | %23.3f |\n",
         minTimeUs, maxTimeUs, avgTimeUs,
         popStdevTimeUs * 100.0 / avgTimeUsF64, popStdevTimeUs,
         smpStdevTimeUs * 100.0 / avgTimeUsF64, smpStdevTimeUs,
@@ -440,14 +499,14 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     const benchmark_SharedData *sharedData = (const benchmark_SharedData *)userdata;
     D3D12_FEATURE_DATA_D3D12_OPTIONS1 options1;
     D3D12AID_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
-    printf("Total Lane Count %u\n", options1.TotalLaneCount);
+    debugPrintF("Total Lane Count %u\n", options1.TotalLaneCount);
 
     const uint32_t kSortKeysPerDispatch = options1.TotalLaneCount * kMaxSortKeysPerTg;
 
     d3d12aid_CmdQueue queue;
     d3d12aid_CmdQueue_Create(&queue, device, kCmdBufferInFlight, 1, D3D12_COMMAND_LIST_TYPE_DIRECT);
 
-    printf("Created D3D12 Command Queue, Allocators and Lists ...\n");
+    debugPrintF("Created D3D12 Command Queue, Allocators and Lists ...\n");
 
     uint64_t gpuTimestampFreq = 0;
     D3D12AID_CHECK(queue.queue->GetTimestampFrequency(&gpuTimestampFreq));
@@ -487,7 +546,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
         d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i + _countof(GShaderBytecodesNoWaveIntrinsics)], device, GShaderBytecodes[i].shaderBytecode, GShaderBytecodes[i].shaderBytecodeSizeInBytes);
     }
 
-    printf("Created D3D12 Resources and PSOs ...\n");
+    debugPrintF("Created D3D12 Resources and PSOs ...\n");
 
     perfData_PrintHeader();
 
@@ -580,7 +639,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
             if (benchmarkFrameIndex == kBenchmarkFrameCount - 1u)
             {
                 //const uint32_t readbackKernelCount = (kSortKeysPerDispatch + readbackKernelSize - 1) >> readbackShaderBytecode->kernelSizeLog2;
-                printf("[KernelSize=%4u, TGroupSize=%4u, NoWaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 0 : 1);
+                debugPrintF("[KernelSize=%4u, TGroupSize=%4u, NoWaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 0 : 1);
                 // Per Lane
                 //perfData_Print(&perfData, readbackKernelCount << GShaderBytecodes[readbackShaderId].tgroupSizeLog2);
 
@@ -624,5 +683,5 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     d3d12aid_Timestamps_Release(&timestamps);
 
     d3d12aid_CmdQueue_Release(&queue);
-    printf("Destroyed D3D12 Objects ...\n");
+    debugPrintF("Destroyed D3D12 Objects ...\n");
 }
