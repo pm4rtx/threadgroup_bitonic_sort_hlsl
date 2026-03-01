@@ -173,22 +173,6 @@ exit /b 0
     endlocal
 exit /b 0
 
-:compile_debug
-    for %%a in (%1\*.cpp) do (cl %msvc_compile_flags_dbg% /Fo%%~na.obj /Fd%%~na.pdb %%a)
-exit /b 0
-
-:compile_release
-    for %%a in (%1\*.cpp) do (cl %msvc_compile_flags_opt% /Fo%%~na.obj %%a)
-exit /b 0
-
-:link_debug_exe
-    %msvc_link_dbg% %*
-exit /b 0
-
-:link_release_exe
-    %msvc_link_opt% %*
-exit /b 0
-
 :fetch_nuget_package
     start /wait /b curl -L -s -o %1.%2.zip https://www.nuget.org/api/v2/package/%1/%2
     mkdir %1.%2
