@@ -271,7 +271,11 @@ static int benchmark_ForEachDevice(benchmark_ForEachDeviceCback *callback, void 
         D3D12AID_CHECK(adapter->GetDesc1(&desc));
         if (desc.VendorId != 0x1414)
         {
-            //debugPrintF("Found: vendorId=0x%04x, deviceId=0x%04x, revision=0x%02x, %lS\n", desc.VendorId, desc.DeviceId, desc.Revision, desc.Description);
+            char deviceDescription[_countof(desc.Description)];
+            if (0 != WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1, deviceDescription, _countof(deviceDescription), NULL, NULL))
+            {
+                debugPrintF("Found: vendorId=0x%04x, deviceId=0x%04x, revision=0x%02x, %s\n", desc.VendorId, desc.DeviceId, desc.Revision, deviceDescription);
+            }
             ID3D12Device *device = NULL;
             D3D12AID_CHECK(fnD3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
             D3D12AID_CHECK(device->SetStablePowerState(TRUE));
