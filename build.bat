@@ -18,6 +18,7 @@ if not defined LIB      echo [`LIB` environment variable doesn't exist. Make sur
 for %%a in (%*) do set "%%a=1"
 
 if not "%release%"=="1" if not "%debug%"=="1" echo [Configuration ("Debug" or "Release") was not set. Choosing "Release"] && set release=1
+if not "%msvc%"=="1" if not "%clang%"=="1" echo [Compiler ("MSVC" or "Clang") was not set. Choosing "MSVC"] && set msvc=1
 
 if not "%no_nuget%"=="1" set no_nuget=0
 if not "%no_shaders%"=="1" set no_shaders=0
@@ -103,8 +104,13 @@ set msvc_compile_flags_dbg=/Od /GS /RTCscu /D_ALLOW_RTCc_IN_STL=1 /D_DEBUG=1 /wd
 ::      - 4711 - function 'function' selected for inline expansion
 set msvc_compile_flags_opt=/O2 /GL /GS- /DNDEBUG=1 /wd4710 /wd4711 %msvc_compile_flags_std%
 
+set msvc_compile=cl
+set msvc_compile_link=/link
+set msvc_compile_link_out=/out:
+
 set msvc_link_flags_std=/nologo /incremental:no /nodefaultlib /subsystem:console /machine:x64 /debug
 set msvc_link_flags_opt=/ltcg %msvc_link_flags_std%
+set msvc_link_flags_dbg=%msvc_link_flags_std%
 set msvc_link_libs_std=kernel32.lib shell32.lib ole32.lib
 
 :: According to https://learn.microsoft.com/en-us/cpp/c-runtime-library/crt-library-features?view=msvc-170
@@ -122,38 +128,52 @@ set msvc_link_libs_std=kernel32.lib shell32.lib ole32.lib
 :: set msvc_link_libs_opt=msvcrt.lib ucrt.lib vcruntime.lib
 :: set msvc_link_libs_opt=libcmt.lib libucrt.lib libvcruntime.lib
 
-set msvc_link_libs_opt=libcmt.lib libucrt.lib libvcruntime.lib
-set msvc_link_libs_dbg=msvcrtd.lib ucrtd.lib vcruntimed.lib
-::libcmtd.lib libucrtd.lib libvcruntimed.lib
+set msvc_link_libs_opt=libcmt.lib libucrt.lib libvcruntime.lib %msvc_link_libs_std%
+set msvc_link_libs_dbg=msvcrtd.lib ucrtd.lib vcruntimed.lib %msvc_link_libs_std%
 
-set msvc_link_opt=call link %msvc_link_flags_opt% %msvc_link_libs_std% %msvc_link_libs_opt%
-set msvc_link_dbg=call link %msvc_link_flags_std% %msvc_link_libs_std% %msvc_link_libs_dbg%
+set clang_compile_flags_std=-g -fno-rtti -Wall -Wextra -Werror -I %SRC_DIR%\.build_shaders
+set clang_compile_flags_dbg=-O0 -D_DEBUG=1 %clang_compile_flags_std%
+set clang_compile_flags_opt=-O3 -DNDEBUG=1 %clang_compile_flags_std%
+
+set clang_compile=clang
+set clang_compile_link=-fuse-ld=lld
+set clang_compile_link_out=-o
+
+set clang_link_flags_opt=
+for %%a in (%msvc_link_flags_opt%) do set "clang_link_flags_opt=!clang_link_flags_opt! -Xlinker %%a"
+
+set clang_link_flags_dbg=
+for %%a in (%msvc_link_flags_dbg%) do set "clang_link_flags_dbg=!clang_link_flags_dbg! -Xlinker %%a"
+
+set clang_link_libs_opt=
+for %%a in (%msvc_link_libs_opt%) do set "clang_link_libs_opt=!clang_link_libs_opt! -Xlinker %%a"
+
+set clang_link_libs_dbg=
+for %%a in (%msvc_link_libs_dbg%) do set "clang_link_libs_dbg=!clang_link_libs_dbg! -Xlinker %%a"
 
 if "%release%"=="1" (
-    echo [building Release]
-    call :build_config release
+    if "%clang%"=="1"   echo [building Clang Release]   && call :build_config clang opt
+    if "%msvc%"=="1"    echo [building MSVC Release]    && call :build_config msvc opt
 )
 
 if "%debug%"=="1" (
-    echo [building Debug]
-    call :build_config debug
+    if "%clang%"=="1"   echo [building Clang Debug]     && call :build_config clang dbg
+    if "%msvc%"=="1"    echo [building MSVC Debug]      && call :build_config msvc dbg
 )
 
 goto :eof
 
 :build_config
-    if not exist .build_%1 mkdir .build_%1
-    pushd .build_%1
-        :: copy the required DLLs if NuGet packages exist or were acquired
-        if defined d3d_bin_path if exist %d3d_bin_path%\D3D12Core.dll           copy /v /y /b %d3d_bin_path%\D3D12Core.dll . >nul
-        if defined d3d_bin_path if exist %d3d_bin_path%\d3d12SDKLayers.dll      copy /v /y /b %d3d_bin_path%\d3d12SDKLayers.dll . >nul
-        if defined pix_bin_path if exist %pix_bin_path%\WinPixEventRuntime.dll  copy /v /y /b %pix_bin_path%\WinPixEventRuntime.dll . >nul
-
-        if "%1"=="debug" (
-            call cl.exe %msvc_compile_flags_dbg% ..\demo.cpp /link %msvc_link_flags_std% %msvc_link_libs_std% %msvc_link_libs_dbg% /out:demo_%1.exe
-        ) else if "%1"=="release" (
-            call cl.exe %msvc_compile_flags_opt% ..\demo.cpp /link %msvc_link_flags_opt% %msvc_link_libs_std% %msvc_link_libs_opt% /out:demo_%1.exe
-        )
+    setlocal
+    if not exist .build_%1_%2 mkdir .build_%1_%2
+    pushd .build_%1_%2
+        call :copy_binaries
+        set compile=%%%1_compile%% %%%1_compile_flags_%2%%
+        set compile_link=%%%1_compile_link%%
+        set compile_link_out=%%%1_compile_link_out%%
+        set link_flags=%%%1_link_flags_%2%%
+        set link_libs=%%%1_link_libs_%2%%
+        call %compile% ..\demo.cpp %compile_link% %compile_link_out%demo_%1_%2.exe %link_flags% %link_libs%
     popd
 exit /b 0
 
@@ -171,6 +191,13 @@ exit /b 0
     )
     %dxc_compile_cs% %args% -Fo shader_%dst%.cso -Fc shader_%dst%.asm -Fh shader_%dst%.h -Vn shader_%dst% -Fd shader_%dst%.pdb ..\%src%.hlsl
     endlocal
+exit /b 0
+
+:: copy the required DLLs if NuGet packages exist or were acquired
+:copy_binaries
+    if defined d3d_bin_path if exist %d3d_bin_path%\D3D12Core.dll           copy /v /y /b %d3d_bin_path%\D3D12Core.dll .            >nul
+    if defined d3d_bin_path if exist %d3d_bin_path%\d3d12SDKLayers.dll      copy /v /y /b %d3d_bin_path%\d3d12SDKLayers.dll .       >nul
+    if defined pix_bin_path if exist %pix_bin_path%\WinPixEventRuntime.dll  copy /v /y /b %pix_bin_path%\WinPixEventRuntime.dll .   >nul
 exit /b 0
 
 :fetch_nuget_package
