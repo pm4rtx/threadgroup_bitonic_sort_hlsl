@@ -869,6 +869,9 @@ typedef struct d3d12aid_CmdQueue d3d12aid_CmdQueue;
 
 D3D12AID_API void d3d12aid_CmdQueue_Create(d3d12aid_CmdQueue *outQueue, ID3D12Device *device, uint32_t frameCount, uint32_t listCountPerFrame, D3D12_COMMAND_LIST_TYPE cmdQueueType)
 {
+    D3D12AID_ASSERT(frameCount <= D3D12AID_CMD_QUEUE_LATENCY_FRAME_MAX_COUNT);
+    D3D12AID_ASSERT(listCountPerFrame <= D3D12AID_CMD_QUEUE_LIST_MAX_COUNT_PER_FRAME);
+
     D3D12_COMMAND_QUEUE_DESC queueDesc;
 
     queueDesc.Type      = cmdQueueType;
