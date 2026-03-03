@@ -141,11 +141,7 @@ goto :eof
 :build_config
     if not exist .build_%1 mkdir .build_%1
     pushd .build_%1
-        :: copy the required DLLs if NuGet packages exist or were acquired
-        if defined d3d_bin_path if exist %d3d_bin_path%\D3D12Core.dll           copy /v /y /b %d3d_bin_path%\D3D12Core.dll . >nul
-        if defined d3d_bin_path if exist %d3d_bin_path%\d3d12SDKLayers.dll      copy /v /y /b %d3d_bin_path%\d3d12SDKLayers.dll . >nul
-        if defined pix_bin_path if exist %pix_bin_path%\WinPixEventRuntime.dll  copy /v /y /b %pix_bin_path%\WinPixEventRuntime.dll . >nul
-
+        call :copy_binaries
         if "%1"=="debug" (
             call cl.exe %msvc_compile_flags_dbg% ..\demo.cpp /link %msvc_link_flags_std% %msvc_link_libs_std% %msvc_link_libs_dbg% /out:demo_%1.exe
         ) else if "%1"=="release" (
@@ -168,6 +164,13 @@ exit /b 0
     )
     %dxc_compile_cs% %args% -Fo shader_%dst%.cso -Fc shader_%dst%.asm -Fh shader_%dst%.h -Vn shader_%dst% -Fd shader_%dst%.pdb ..\%src%.hlsl
     endlocal
+exit /b 0
+
+:: copy the required DLLs if NuGet packages exist or were acquired
+:copy_binaries
+    if defined d3d_bin_path if exist %d3d_bin_path%\D3D12Core.dll           copy /v /y /b %d3d_bin_path%\D3D12Core.dll .            >nul
+    if defined d3d_bin_path if exist %d3d_bin_path%\d3d12SDKLayers.dll      copy /v /y /b %d3d_bin_path%\d3d12SDKLayers.dll .       >nul
+    if defined pix_bin_path if exist %pix_bin_path%\WinPixEventRuntime.dll  copy /v /y /b %pix_bin_path%\WinPixEventRuntime.dll .   >nul
 exit /b 0
 
 :fetch_nuget_package
