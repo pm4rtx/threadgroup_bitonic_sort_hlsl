@@ -273,14 +273,21 @@ static int benchmark_ForEachDevice(benchmark_ForEachDeviceCback *callback, void 
         D3D12AID_CHECK(adapter->GetDesc1(&desc));
         if (desc.VendorId != 0x1414)
         {
-            static const char deviceNamePattern [] = "venId_0x0000_devId_0x0000_revId_0x00_";
-            char deviceDescription[_countof(desc.Description)];
-            char deviceName[_countof(deviceDescription) + _countof(deviceNamePattern) - 1];
-            if (0 != WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1, deviceDescription, _countof(deviceDescription), NULL, NULL))
+            static const char deviceNamePattern [] = "_venId_0x0000_devId_0x0000_revId_0x00";
+            static const char deviceNameDefault [] = "Unknown Device";
+            char deviceNameD3D12[_countof(desc.Description)];
+            char deviceFullName[_countof(deviceNameD3D12) + _countof(deviceNamePattern) - 1];
+            const char *deviceName = NULL;
+            if (0 != WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1, deviceNameD3D12, _countof(deviceNameD3D12), NULL, NULL))
             {
-                debugPrintF("Found: vendorId=0x%04x, deviceId=0x%04x, revision=0x%02x, %s\n", desc.VendorId, desc.DeviceId, desc.Revision, deviceDescription);
-                stbsp_snprintf(deviceName, _countof(deviceName), "venId_0x%04x_devId_0x%04x_revId_0x%02x_%s", desc.VendorId, desc.DeviceId, desc.Revision, deviceDescription);
+                deviceName = deviceNameD3D12;
             }
+            else
+            {
+                deviceName = deviceNameDefault;
+            }
+            stbsp_snprintf(deviceFullName, _countof(deviceFullName), "%s_venId_0x%04x_devId_0x%04x_revId_0x%02x", deviceName, desc.VendorId, desc.DeviceId, desc.Revision);
+            debugPrintF("Found: %s\n", deviceFullName);
             ID3D12Device *device = NULL;
             D3D12AID_CHECK(fnD3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
             D3D12AID_CHECK(device->SetStablePowerState(TRUE));
