@@ -853,6 +853,7 @@ struct d3d12aid_CmdQueue
     HANDLE                      fenceEvent;
     ID3D12Fence                *fence;
     ID3D12CommandQueue         *queue;
+    ID3D12Device               *device;
 
     ID3D12CommandAllocator     *cmdAllocs[D3D12AID_CMD_QUEUE_ALLOC_MAX_COUNT];
     uint64_t                    cmdAllocReuseFenceValues[D3D12AID_CMD_QUEUE_ALLOC_MAX_COUNT];
@@ -879,6 +880,8 @@ D3D12AID_API void d3d12aid_CmdQueue_Create(d3d12aid_CmdQueue *outQueue, ID3D12De
     queueDesc.Flags     = D3D12_COMMAND_QUEUE_FLAG_NONE;
     queueDesc.NodeMask  = 0x1;
 
+    outQueue->device = device;
+    outQueue->device->AddRef();
     D3D12AID_CHECK(device->CreateCommandQueue(&queueDesc, D3D12AID_IID_PPV_ARGS(&outQueue->queue)));
 
     outQueue->cmdAllocCount = frameCount * listCountPerFrame;
@@ -943,15 +946,28 @@ D3D12AID_API void d3d12aid_CmdQueue_GpuWaitForFence(d3d12aid_CmdQueue *queue, ui
     D3D12AID_ASSERT(fenceId < queue->fenceValue);
     D3D12AID_CHECK(queue->queue->Wait(queue->fence, fenceId));
 }
-
+D3D12AID_API bool d3d12aid_CmdQueue_IsFenceCompleted(d3d12aid_CmdQueue *queue, uint64_t fenceId)
+{
+    const uint64_t completedFenceId = queue->fence->GetCompletedValue();
+    if (UINT64_MAX == completedFenceId)
+    {
+        HRESULT hr = queue->device->GetDeviceRemovedReason();
+        D3D12AID_ASSERT(DXGI_ERROR_DEVICE_HUNG != hr);
+        D3D12AID_ASSERT(DXGI_ERROR_DEVICE_REMOVED != hr);
+        D3D12AID_ASSERT(DXGI_ERROR_DEVICE_RESET != hr);
+        D3D12AID_ASSERT(S_OK == hr);
+        return false;
+    }
+    return fenceId <= completedFenceId;
+}
 D3D12AID_API void d3d12aid_CmdQueue_CpuWaitForFence(d3d12aid_CmdQueue *queue, uint64_t fenceId)
 {
     D3D12AID_ASSERT(fenceId < queue->fenceValue);
-    uint64_t fenceIdCompleted = queue->fence->GetCompletedValue();
-    if (fenceId > fenceIdCompleted)
+    if (!d3d12aid_CmdQueue_IsFenceCompleted(queue, fenceId))
     {
         D3D12AID_CHECK(queue->fence->SetEventOnCompletion(fenceId, queue->fenceEvent));
         WaitForSingleObjectEx(queue->fenceEvent, INFINITE, FALSE);
+        d3d12aid_CmdQueue_IsFenceCompleted(queue, fenceId);
     }
 }
 
@@ -974,6 +990,7 @@ D3D12AID_API void d3d12aid_CmdQueue_Release(d3d12aid_CmdQueue *queue)
 
     D3D12AID_SAFE_RELEASE(queue->fence);
     D3D12AID_SAFE_RELEASE(queue->queue);
+    D3D12AID_SAFE_RELEASE(queue->device);
 }
 
 D3D12AID_API uint64_t d3d12aid_CmdQueue_SubmitMultiCmdLists(d3d12aid_CmdQueue *queue, uint32_t cmdListIdStart, uint32_t cmdListIdCount)
@@ -1048,12 +1065,6 @@ D3D12AID_API uint64_t d3d12aid_CmdQueue_SubmitCmdList(d3d12aid_CmdQueue *queue, 
 D3D12AID_API ID3D12GraphicsCommandList *d3d12aid_CmdQueue_StartCmdList(d3d12aid_CmdQueue *queue, uint32_t cmdListId)
 {
     return d3d12aid_CmdQueue_StartMultiCmdLists(queue, cmdListId, 1)[0];
-}
-
-D3D12AID_API bool d3d12aid_CmdQueue_IsFenceCompleted(d3d12aid_CmdQueue *queue, uint64_t fenceId)
-{
-    return fenceId <= queue->fence->GetCompletedValue();
-
 }
 
 #endif /** D3D12AID_H */
