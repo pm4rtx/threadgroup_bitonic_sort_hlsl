@@ -18,7 +18,7 @@ if not defined LIB      echo [`LIB` environment variable doesn't exist. Make sur
 for %%a in (%*) do set "%%a=1"
 
 if not "%release%"=="1" if not "%debug%"=="1" echo [Configuration ("Debug" or "Release") was not set. Choosing "Release"] && set release=1
-if not "%msvc%"=="1" echo [Compiler ("MSVC") was not set. Choosing "MSVC"] && set msvc=1
+if not "%msvc%"=="1" if not "%clang%"=="1" echo [Compiler ("MSVC" or "Clang") was not set. Choosing "MSVC"] && set msvc=1
 
 if not "%no_nuget%"=="1" set no_nuget=0
 if not "%no_shaders%"=="1" set no_shaders=0
@@ -130,16 +130,35 @@ set msvc_link_libs_std=kernel32.lib shell32.lib ole32.lib
 
 set msvc_link_libs_opt=libcmt.lib libucrt.lib libvcruntime.lib %msvc_link_libs_std%
 set msvc_link_libs_dbg=msvcrtd.lib ucrtd.lib vcruntimed.lib %msvc_link_libs_std%
-::libcmtd.lib libucrtd.lib libvcruntimed.lib
+
+set clang_compile_flags_std=-g -fno-rtti -Wall -Wextra -Werror -I %SRC_DIR%\.build_shaders
+set clang_compile_flags_dbg=-O0 -D_DEBUG=1 %clang_compile_flags_std%
+set clang_compile_flags_opt=-O3 -DNDEBUG=1 %clang_compile_flags_std%
+
+set clang_compile=clang
+set clang_compile_link=-fuse-ld=lld
+set clang_compile_link_out=-o
+
+set clang_link_flags_opt=
+for %%a in (%msvc_link_flags_opt%) do set "clang_link_flags_opt=!clang_link_flags_opt! -Xlinker %%a"
+
+set clang_link_flags_dbg=
+for %%a in (%msvc_link_flags_dbg%) do set "clang_link_flags_dbg=!clang_link_flags_dbg! -Xlinker %%a"
+
+set clang_link_libs_opt=
+for %%a in (%msvc_link_libs_opt%) do set "clang_link_libs_opt=!clang_link_libs_opt! -Xlinker %%a"
+
+set clang_link_libs_dbg=
+for %%a in (%msvc_link_libs_dbg%) do set "clang_link_libs_dbg=!clang_link_libs_dbg! -Xlinker %%a"
 
 if "%release%"=="1" (
-    echo [building Release]
-    call :build_config msvc opt
+    if "%clang%"=="1"   echo [building Clang Release]   && call :build_config clang opt
+    if "%msvc%"=="1"    echo [building MSVC Release]    && call :build_config msvc opt
 )
 
 if "%debug%"=="1" (
-    echo [building Debug]
-    call :build_config msvc dbg
+    if "%clang%"=="1"   echo [building Clang Debug]     && call :build_config clang dbg
+    if "%msvc%"=="1"    echo [building MSVC Debug]      && call :build_config msvc dbg
 )
 
 goto :eof
