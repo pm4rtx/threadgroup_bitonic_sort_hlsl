@@ -126,9 +126,6 @@ set msvc_link_libs_opt=libcmt.lib libucrt.lib libvcruntime.lib
 set msvc_link_libs_dbg=msvcrtd.lib ucrtd.lib vcruntimed.lib
 ::libcmtd.lib libucrtd.lib libvcruntimed.lib
 
-set msvc_link_opt=call link %msvc_link_flags_opt% %msvc_link_libs_std% %msvc_link_libs_opt%
-set msvc_link_dbg=call link %msvc_link_flags_std% %msvc_link_libs_std% %msvc_link_libs_dbg%
-
 if "%release%"=="1" (
     echo [building Release]
     call :build_config release
