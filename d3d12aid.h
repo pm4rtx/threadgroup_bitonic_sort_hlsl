@@ -777,7 +777,6 @@ D3D12AID_API void d3d12aid_MappedBuffer_Append(d3d12aid_MappedBuffer *inoutBuffe
     if (inoutBuffer->heapType == D3D12_HEAP_TYPE_UPLOAD)
     {
         D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
-        D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
         D3D12AID_ASSERT(inoutBuffer->sizeInBytes >= inoutBuffer->offsInBytes + sizeInBytes);
 
         D3D12AID_MEMCPY((char *)inoutBuffer->bufMem[frameIndex] + inoutBuffer->offsInBytes, data, sizeInBytes);
@@ -789,7 +788,6 @@ D3D12AID_API void d3d12aid_MappedBuffer_Skip(d3d12aid_MappedBuffer* inoutBuffer,
 {
     if (inoutBuffer->heapType == D3D12_HEAP_TYPE_UPLOAD)
     {
-        D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
         D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
         D3D12AID_ASSERT(inoutBuffer->sizeInBytes >= inoutBuffer->offsInBytes + sizeInBytes);
 
