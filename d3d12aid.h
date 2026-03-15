@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2025, by Pavel Martishevsky
+ * Copyright (c) 2025-2026 Pavel Martishevsky
  *
  * This header is distributed under the MIT License. See notice at the end of this file.
  */
@@ -8,6 +8,8 @@
 
 #ifndef D3D12AID_H
 #define D3D12AID_H
+
+#include "compiler_warning.h"
 
 #ifdef _MSC_VER
 #   define D3D12AID_INLINE __forceinline
@@ -1068,7 +1070,7 @@ D3D12AID_API ID3D12GraphicsCommandList *d3d12aid_CmdQueue_StartCmdList(d3d12aid_
 #endif /** D3D12AID_H */
 
 /**
- * Copyright (c) 2025 Pavel Martishevsky
+ * Copyright (c) 2025-2026 Pavel Martishevsky
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
