@@ -1,0 +1,115 @@
+//------------------------------------------------------------------------------
+//  FASTBuild Configuration
+//
+//  Compiles 60 HLSL compute shader permutations using DXC in parallel:
+//      - 30 (KernelSizeLog2, TGroupSizeLog2) combinations
+//      - x2 variants: with/without wave intrinsics
+//
+//  Usage:
+//      tools\FBuild.exe all
+//------------------------------------------------------------------------------
+
+Settings
+{
+    .CachePath = ''
+}
+
+//------------------------------------------------------------------------------
+//  DXC Compiler (imported from DXC environment variable, set by build.bat)
+//------------------------------------------------------------------------------
+#import DXC
+
+//------------------------------------------------------------------------------
+//  Common flags (matching build.bat dxc_flags_opt + dxc_compile_cs)
+//------------------------------------------------------------------------------
+.DxcCommonFlags = '-E main -T cs_6_0 -O3 -HV 2021 -Zs -Qstrip_debug'
+
+.OutputDir = '.build_shaders'
+
+//------------------------------------------------------------------------------
+//  Header dependencies to make sure re-compilation triggers when those are
+//  modified
+//------------------------------------------------------------------------------
+.ShaderDeps = {
+    'threadgroup_bitonic_sort.hlsl'
+    'threadgroup_bitonic_sort.hlsli'
+}
+
+//------------------------------------------------------------------------------
+//  Shader permutations -- parallel arrays for (KernelSizeLog2, TGroupSizeLog2)
+//  Generated from: for i in 1..10, j in 0..2: K=i+j, T=i
+//------------------------------------------------------------------------------
+.KernelSizes = {
+    '1','2','3',    // T=1
+    '2','3','4',    // T=2
+    '3','4','5',    // T=3
+    '4','5','6',    // T=4
+    '5','6','7',    // T=5
+    '6','7','8',    // T=6
+    '7','8','9',    // T=7
+    '8','9','10',   // T=8
+    '9','10','11',  // T=9
+    '10','11','12'  // T=10
+}
+.TGroupSizes = {
+    '1','1','1',
+    '2','2','2',
+    '3','3','3',
+    '4','4','4',
+    '5','5','5',
+    '6','6','6',
+    '7','7','7',
+    '8','8','8',
+    '9','9','9',
+    '10','10','10'
+}
+
+//------------------------------------------------------------------------------
+//  Wave intrinsic variants
+//------------------------------------------------------------------------------
+.WaveIds     = { '0', '1' }
+.WaveDefines = { '',  ' -DNO_WAVE_INTRINSICS=1' }
+
+//------------------------------------------------------------------------------
+//  Generate Exec targets: 2 variants per (K, T) combination
+//  Outer loop: (KernelSizeLog2, TGroupSizeLog2) — 30 combinations
+//  Inner loop: wave/no-wave — 2 variants
+//------------------------------------------------------------------------------
+.AllShaderTargets = {}
+
+ForEach( .K in .KernelSizes,
+         .T in .TGroupSizes )
+{
+    .Defines  = '-DKERNEL_SIZE_LOG2=$K$ -DTGROUP_SIZE_LOG2=$T$'
+    .BaseName = 'threadgroup_bitonic_sort_$K$_$T$'
+
+    ForEach( .W  in .WaveIds,
+             .WD in .WaveDefines )
+    {
+        Exec( 'Shader-$BaseName$_$W$' )
+        {
+            .ExecExecutable = .DXC
+            .ExecArguments  = '$DxcCommonFlags$ $Defines$$WD$'
+                            + ' -Fc "$OutputDir$/shader_$BaseName$_$W$.asm"'
+                            + ' -Fh "$OutputDir$/shader_$BaseName$_$W$.h"'
+                            + ' -Vn shader_$BaseName$_$W$'
+                            + ' -Fd "$OutputDir$/shader_$BaseName$_$W$.pdb"'
+                            + ' "threadgroup_bitonic_sort.hlsl"'
+            .ExecOutput     = '$OutputDir$/shader_$BaseName$_$W$.h'
+            .ExecInput      = .ShaderDeps
+        }
+
+        ^AllShaderTargets + {
+            'Shader-$BaseName$_$W$'
+        }
+    }
+}
+
+//------------------------------------------------------------------------------
+//  Setup an alias to build/rebuild all targets
+//------------------------------------------------------------------------------
+Alias( 'all' )
+{
+    .Targets = .AllShaderTargets
+}
+

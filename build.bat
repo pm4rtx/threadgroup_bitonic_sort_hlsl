@@ -22,6 +22,7 @@ if not "%msvc%"=="1" if not "%clang%"=="1" echo [Compiler ("MSVC" or "Clang") wa
 
 if not "%no_nuget%"=="1" set no_nuget=0
 if not "%no_shaders%"=="1" set no_shaders=0
+if not "%no_fbuild%"=="1" set no_fbuild=0
 
 :: Populate NuGet cache
 if not exist .nuget_cache if not "%no_nuget%"=="1" (
@@ -73,7 +74,25 @@ if "%no_shaders%"=="1" (
 ) else if not defined DXC (
     echo [Skipping building shaders, `dxc.exe` wasn't found.]
 ) else (
-    :: We rebuild shaders when any of the configs compiled
+    if not exist tool\FBuild.exe if not "%no_fbuild%"=="1" (
+        where /q curl
+        if errorlevel 1 (
+            echo [Can't find `curl.exe` in PATH... skipping `FASTBuild` download]
+        ) else (
+            echo [Found `curl.exe` in PATH... downloading `FASTBuild`]
+            mkdir tool
+            pushd tool
+                curl -L -s -o fastbuild.zip https://www.fastbuild.org/downloads/v1.19/FASTBuild-Windows-x64-v1.19.zip
+                start /wait /b tar -xf fastbuild.zip -C .
+                del fastbuild.zip
+                echo [`FASTBuild v1.19` downloaded to `tools\FBuild.exe`]
+            popd
+        )
+    )
+    if not exist tool\FBuild.exe set no_fbuild=1
+
+    if "%no_fbuild%"=="1" (
+        :: We rebuild shaders when any of the configs compiled
     if not exist .build_shaders mkdir .build_shaders
     pushd .build_shaders
         set dxc_flags_std=-HV 2021 -Zs -Qstrip_debug
@@ -90,6 +109,10 @@ if "%no_shaders%"=="1" (
             )
         )
     popd
+    ) else (
+        echo [Building shaders with `FASTBuild`]
+        call tool\FBuild.exe -quiet
+    )
 )
 
 :: for a set of 'standard' ('std') flags that are shared between Debug/Release build for Microsoft Visual C++ compiler, we disable only
