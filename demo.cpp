@@ -471,17 +471,20 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
 
     // We test kernels w/ and w/o wave intrinsics support if possible
     d3d12aid_ComputeRsPs rspsBitonicSort[kShaderMaxCount];
+    const ShaderBytecode *shaders[kShaderMaxCount];
 
     uint32_t kShaderCount = kShaderNoWaveIntrinsicsCount;
     for (uint32_t i = 0; i < kShaderNoWaveIntrinsicsCount; ++i)
     {
-        d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i], device, GShaderBytecodesNoWaveIntrinsics[i].shaderBytecode, GShaderBytecodesNoWaveIntrinsics[i].shaderBytecodeSizeInBytes);
+        shaders[i] = &GShaderBytecodesNoWaveIntrinsics[i];
+        d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i], device, shaders[i]->shaderBytecode, shaders[i]->shaderBytecodeSizeInBytes);
     }
     if (options1.WaveOps)
     {
-        for (uint32_t i = 0; i < kShaderWithWaveIntrinsicsCount; ++i)
+        for (uint32_t i = kShaderNoWaveIntrinsicsCount; i < kShaderMaxCount; ++i)
         {
-            d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i + kShaderNoWaveIntrinsicsCount], device, GShaderBytecodes[i].shaderBytecode, GShaderBytecodes[i].shaderBytecodeSizeInBytes);
+            shaders[i] = &GShaderBytecodes[i - kShaderNoWaveIntrinsicsCount];
+            d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i], device, shaders[i]->shaderBytecode, shaders[i]->shaderBytecodeSizeInBytes);
         }
         kShaderCount += kShaderWithWaveIntrinsicsCount;
     }
@@ -496,13 +499,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     {
         // run each Shader/Kernel every 'kBenchmarkFrameCount' frames
         const uint32_t dispatchShaderId = (frameIndex / kBenchmarkFrameCount) % kShaderCount;
-        const ShaderBytecode *dispatchShaderBytecode = NULL;
-
-        if (dispatchShaderId >= _countof(GShaderBytecodesNoWaveIntrinsics))
-            dispatchShaderBytecode = &GShaderBytecodes[dispatchShaderId - _countof(GShaderBytecodesNoWaveIntrinsics)];
-        else
-            dispatchShaderBytecode = &GShaderBytecodesNoWaveIntrinsics[dispatchShaderId];
-
+        const ShaderBytecode *dispatchShaderBytecode = shaders[dispatchShaderId];
         const uint32_t dispatchKernelSize = 1u << dispatchShaderBytecode->kernelSizeLog2;
         const uint32_t dispatchTGroupSize = 1u << dispatchShaderBytecode->tgroupSizeLog2;
 
@@ -512,7 +509,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
         {
             char buffer[256];
             wchar_t wbuffer[256];
-            stbsp_snprintf(buffer, _countof(buffer), "%c:\\tg_bitonic_kernel_%u_tgroup_%u_waveintr_%u_%s.wpix", sharedData->captureDrive, dispatchKernelSize, dispatchTGroupSize, dispatchShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 1 : 0, deviceName);
+            stbsp_snprintf(buffer, _countof(buffer), "%c:\\tg_bitonic_kernel_%u_tgroup_%u_waveintr_%u_%s.wpix", sharedData->captureDrive, dispatchKernelSize, dispatchTGroupSize, dispatchShaderId >= kShaderNoWaveIntrinsicsCount ? 1 : 0, deviceName);
             if (0 != MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wbuffer, _countof(wbuffer)))
             {
                 PIXCaptureParameters params;
@@ -564,13 +561,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
 
             uint32_t readbackShaderId = (readbackFrameIndex / kBenchmarkFrameCount) % kShaderCount;
 
-            const ShaderBytecode *readbackShaderBytecode = NULL;
-
-            if (readbackShaderId >= _countof(GShaderBytecodesNoWaveIntrinsics))
-                readbackShaderBytecode = &GShaderBytecodes[readbackShaderId - _countof(GShaderBytecodesNoWaveIntrinsics)];
-            else
-                readbackShaderBytecode = &GShaderBytecodesNoWaveIntrinsics[readbackShaderId];
-
+            const ShaderBytecode *readbackShaderBytecode = shaders[readbackShaderId];
             const uint32_t readbackKernelSize = 1u << readbackShaderBytecode->kernelSizeLog2;
             const uint32_t readbackTGroupSize = 1u << readbackShaderBytecode->tgroupSizeLog2;
 
@@ -586,7 +577,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
             if (benchmarkFrameIndex == kBenchmarkFrameCount - 1u)
             {
                 //const uint32_t readbackKernelCount = (kSortKeysPerDispatch + readbackKernelSize - 1) >> readbackShaderBytecode->kernelSizeLog2;
-                debugPrintF("[KernelSize=%4u, TGroupSize=%4u, NoWaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 0 : 1);
+                debugPrintF("[KernelSize=%4u, TGroupSize=%4u, NoWaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId >= kShaderNoWaveIntrinsicsCount ? 0 : 1);
                 // Per Lane
                 //perfData_Print(&perfData, readbackKernelCount << GShaderBytecodes[readbackShaderId].tgroupSizeLog2);
 
