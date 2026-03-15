@@ -269,73 +269,55 @@ struct ShaderBytecode
 
 typedef struct ShaderBytecode ShaderBytecode;
 
+#define SHADER_LIST()\
+    SHADER(1 , 1 )\
+    SHADER(2 , 1 )\
+    SHADER(2 , 2 )\
+    SHADER(3 , 1 )\
+    SHADER(3 , 2 )\
+    SHADER(3 , 3 )\
+    SHADER(4 , 2 )\
+    SHADER(4 , 3 )\
+    SHADER(4 , 4 )\
+    SHADER(5 , 3 )\
+    SHADER(5 , 4 )\
+    SHADER(5 , 5 )\
+    SHADER(6 , 4 )\
+    SHADER(6 , 5 )\
+    SHADER(6 , 6 )\
+    SHADER(7 , 5 )\
+    SHADER(7 , 6 )\
+    SHADER(7 , 7 )\
+    SHADER(8 , 6 )\
+    SHADER(8 , 7 )\
+    SHADER(8 , 8 )\
+    SHADER(9 , 7 )\
+    SHADER(9 , 8 )\
+    SHADER(9 , 9 )\
+    SHADER(10, 8 )\
+    SHADER(10, 9 )\
+    SHADER(10, 10)\
+    SHADER(11, 9 )\
+    SHADER(11, 10)\
+    SHADER(12, 10)
+
 static const ShaderBytecode GShaderBytecodes[] =
 {
-    { 1 , 1 , sizeof(shader_threadgroup_bitonic_sort_1_1_0), shader_threadgroup_bitonic_sort_1_1_0 },
-    { 2 , 1 , sizeof(shader_threadgroup_bitonic_sort_2_1_0), shader_threadgroup_bitonic_sort_2_1_0 },
-    { 2 , 2 , sizeof(shader_threadgroup_bitonic_sort_2_2_0), shader_threadgroup_bitonic_sort_2_2_0 },
-    { 3 , 1 , sizeof(shader_threadgroup_bitonic_sort_3_1_0), shader_threadgroup_bitonic_sort_3_1_0 },
-    { 3 , 2 , sizeof(shader_threadgroup_bitonic_sort_3_2_0), shader_threadgroup_bitonic_sort_3_2_0 },
-    { 3 , 3 , sizeof(shader_threadgroup_bitonic_sort_3_3_0), shader_threadgroup_bitonic_sort_3_3_0 },
-    { 4 , 2 , sizeof(shader_threadgroup_bitonic_sort_4_2_0), shader_threadgroup_bitonic_sort_4_2_0 },
-    { 4 , 3 , sizeof(shader_threadgroup_bitonic_sort_4_3_0), shader_threadgroup_bitonic_sort_4_3_0 },
-    { 4 , 4 , sizeof(shader_threadgroup_bitonic_sort_4_4_0), shader_threadgroup_bitonic_sort_4_4_0 },
-    { 5 , 3 , sizeof(shader_threadgroup_bitonic_sort_5_3_0), shader_threadgroup_bitonic_sort_5_3_0 },
-    { 5 , 4 , sizeof(shader_threadgroup_bitonic_sort_5_4_0), shader_threadgroup_bitonic_sort_5_4_0 },
-    { 5 , 5 , sizeof(shader_threadgroup_bitonic_sort_5_5_0), shader_threadgroup_bitonic_sort_5_5_0 },
-    { 6 , 4 , sizeof(shader_threadgroup_bitonic_sort_6_4_0), shader_threadgroup_bitonic_sort_6_4_0 },
-    { 6 , 5 , sizeof(shader_threadgroup_bitonic_sort_6_5_0), shader_threadgroup_bitonic_sort_6_5_0 },
-    { 6 , 6 , sizeof(shader_threadgroup_bitonic_sort_6_6_0), shader_threadgroup_bitonic_sort_6_6_0 },
-    { 7 , 5 , sizeof(shader_threadgroup_bitonic_sort_7_5_0), shader_threadgroup_bitonic_sort_7_5_0 },
-    { 7 , 6 , sizeof(shader_threadgroup_bitonic_sort_7_6_0), shader_threadgroup_bitonic_sort_7_6_0 },
-    { 7 , 7 , sizeof(shader_threadgroup_bitonic_sort_7_7_0), shader_threadgroup_bitonic_sort_7_7_0 },
-    { 8 , 6 , sizeof(shader_threadgroup_bitonic_sort_8_6_0), shader_threadgroup_bitonic_sort_8_6_0 },
-    { 8 , 7 , sizeof(shader_threadgroup_bitonic_sort_8_7_0), shader_threadgroup_bitonic_sort_8_7_0 },
-    { 8 , 8 , sizeof(shader_threadgroup_bitonic_sort_8_8_0), shader_threadgroup_bitonic_sort_8_8_0 },
-    { 9 , 7 , sizeof(shader_threadgroup_bitonic_sort_9_7_0), shader_threadgroup_bitonic_sort_9_7_0 },
-    { 9 , 8 , sizeof(shader_threadgroup_bitonic_sort_9_8_0), shader_threadgroup_bitonic_sort_9_8_0 },
-    { 9 , 9 , sizeof(shader_threadgroup_bitonic_sort_9_9_0), shader_threadgroup_bitonic_sort_9_9_0 },
-    { 10, 8 , sizeof(shader_threadgroup_bitonic_sort_10_8_0), shader_threadgroup_bitonic_sort_10_8_0 },
-    { 10, 9 , sizeof(shader_threadgroup_bitonic_sort_10_9_0), shader_threadgroup_bitonic_sort_10_9_0 },
-    { 10, 10, sizeof(shader_threadgroup_bitonic_sort_10_10_0), shader_threadgroup_bitonic_sort_10_10_0 },
-    { 11, 9 , sizeof(shader_threadgroup_bitonic_sort_11_9_0), shader_threadgroup_bitonic_sort_11_9_0 },
-    { 11, 10, sizeof(shader_threadgroup_bitonic_sort_11_10_0), shader_threadgroup_bitonic_sort_11_10_0 },
-    { 12, 10, sizeof(shader_threadgroup_bitonic_sort_12_10_0), shader_threadgroup_bitonic_sort_12_10_0 }
+    #define SHADER(K, T) { K , T , sizeof(shader_threadgroup_bitonic_sort_##K##_##T##_0), shader_threadgroup_bitonic_sort_##K##_##T##_0 },
+    SHADER_LIST()
+    #undef  SHADER
 };
+static const uint32_t kShaderWithWaveIntrinsicsCount = _countof(GShaderBytecodes);
 
 static const ShaderBytecode GShaderBytecodesNoWaveIntrinsics[] =
 {
-    { 1 , 1 , sizeof(shader_threadgroup_bitonic_sort_1_1_1), shader_threadgroup_bitonic_sort_1_1_1 },
-    { 2 , 1 , sizeof(shader_threadgroup_bitonic_sort_2_1_1), shader_threadgroup_bitonic_sort_2_1_1 },
-    { 2 , 2 , sizeof(shader_threadgroup_bitonic_sort_2_2_1), shader_threadgroup_bitonic_sort_2_2_1 },
-    { 3 , 1 , sizeof(shader_threadgroup_bitonic_sort_3_1_1), shader_threadgroup_bitonic_sort_3_1_1 },
-    { 3 , 2 , sizeof(shader_threadgroup_bitonic_sort_3_2_1), shader_threadgroup_bitonic_sort_3_2_1 },
-    { 3 , 3 , sizeof(shader_threadgroup_bitonic_sort_3_3_1), shader_threadgroup_bitonic_sort_3_3_1 },
-    { 4 , 2 , sizeof(shader_threadgroup_bitonic_sort_4_2_1), shader_threadgroup_bitonic_sort_4_2_1 },
-    { 4 , 3 , sizeof(shader_threadgroup_bitonic_sort_4_3_1), shader_threadgroup_bitonic_sort_4_3_1 },
-    { 4 , 4 , sizeof(shader_threadgroup_bitonic_sort_4_4_1), shader_threadgroup_bitonic_sort_4_4_1 },
-    { 5 , 3 , sizeof(shader_threadgroup_bitonic_sort_5_3_1), shader_threadgroup_bitonic_sort_5_3_1 },
-    { 5 , 4 , sizeof(shader_threadgroup_bitonic_sort_5_4_1), shader_threadgroup_bitonic_sort_5_4_1 },
-    { 5 , 5 , sizeof(shader_threadgroup_bitonic_sort_5_5_1), shader_threadgroup_bitonic_sort_5_5_1 },
-    { 6 , 4 , sizeof(shader_threadgroup_bitonic_sort_6_4_1), shader_threadgroup_bitonic_sort_6_4_1 },
-    { 6 , 5 , sizeof(shader_threadgroup_bitonic_sort_6_5_1), shader_threadgroup_bitonic_sort_6_5_1 },
-    { 6 , 6 , sizeof(shader_threadgroup_bitonic_sort_6_6_1), shader_threadgroup_bitonic_sort_6_6_1 },
-    { 7 , 5 , sizeof(shader_threadgroup_bitonic_sort_7_5_1), shader_threadgroup_bitonic_sort_7_5_1 },
-    { 7 , 6 , sizeof(shader_threadgroup_bitonic_sort_7_6_1), shader_threadgroup_bitonic_sort_7_6_1 },
-    { 7 , 7 , sizeof(shader_threadgroup_bitonic_sort_7_7_1), shader_threadgroup_bitonic_sort_7_7_1 },
-    { 8 , 6 , sizeof(shader_threadgroup_bitonic_sort_8_6_1), shader_threadgroup_bitonic_sort_8_6_1 },
-    { 8 , 7 , sizeof(shader_threadgroup_bitonic_sort_8_7_1), shader_threadgroup_bitonic_sort_8_7_1 },
-    { 8 , 8 , sizeof(shader_threadgroup_bitonic_sort_8_8_1), shader_threadgroup_bitonic_sort_8_8_1 },
-    { 9 , 7 , sizeof(shader_threadgroup_bitonic_sort_9_7_1), shader_threadgroup_bitonic_sort_9_7_1 },
-    { 9 , 8 , sizeof(shader_threadgroup_bitonic_sort_9_8_1), shader_threadgroup_bitonic_sort_9_8_1 },
-    { 9 , 9 , sizeof(shader_threadgroup_bitonic_sort_9_9_1), shader_threadgroup_bitonic_sort_9_9_1 },
-    { 10, 8 , sizeof(shader_threadgroup_bitonic_sort_10_8_1), shader_threadgroup_bitonic_sort_10_8_1 },
-    { 10, 9 , sizeof(shader_threadgroup_bitonic_sort_10_9_1), shader_threadgroup_bitonic_sort_10_9_1 },
-    { 10, 10, sizeof(shader_threadgroup_bitonic_sort_10_10_1), shader_threadgroup_bitonic_sort_10_10_1 },
-    { 11, 9 , sizeof(shader_threadgroup_bitonic_sort_11_9_1), shader_threadgroup_bitonic_sort_11_9_1 },
-    { 11, 10, sizeof(shader_threadgroup_bitonic_sort_11_10_1), shader_threadgroup_bitonic_sort_11_10_1 },
-    { 12, 10, sizeof(shader_threadgroup_bitonic_sort_12_10_1), shader_threadgroup_bitonic_sort_12_10_1 }
+    #define SHADER(K, T) { K , T , sizeof(shader_threadgroup_bitonic_sort_##K##_##T##_1), shader_threadgroup_bitonic_sort_##K##_##T##_1 },
+    SHADER_LIST()
+    #undef  SHADER
 };
+static const uint32_t kShaderNoWaveIntrinsicsCount = _countof(GShaderBytecodesNoWaveIntrinsics);
+
+static const uint32_t kShaderMaxCount = kShaderWithWaveIntrinsicsCount + kShaderNoWaveIntrinsicsCount;
 
 typedef struct PerfData
 {
@@ -487,23 +469,22 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     d3d12aid_MappedBuffer_Append(&sortInput, 0, randomSortInput, sizeof(uint32_t) * kSortKeysPerDispatch);
     free(randomSortInput);
 
-    const uint32_t kShaderMaxCount = _countof(GShaderBytecodesNoWaveIntrinsics) + _countof(GShaderBytecodes);
-
     // We test kernels w/ and w/o wave intrinsics support if possible
-    const uint32_t kShaderCount = _countof(GShaderBytecodesNoWaveIntrinsics) + (options1.WaveOps ? _countof(GShaderBytecodes) : 0);
-
     d3d12aid_ComputeRsPs rspsBitonicSort[kShaderMaxCount];
 
-    for (uint32_t i = 0; i < _countof(GShaderBytecodesNoWaveIntrinsics); ++i)
+    uint32_t kShaderCount = kShaderNoWaveIntrinsicsCount;
+    for (uint32_t i = 0; i < kShaderNoWaveIntrinsicsCount; ++i)
     {
         d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i], device, GShaderBytecodesNoWaveIntrinsics[i].shaderBytecode, GShaderBytecodesNoWaveIntrinsics[i].shaderBytecodeSizeInBytes);
     }
-
-    for (uint32_t i = 0; i < _countof(GShaderBytecodes); ++i)
+    if (options1.WaveOps)
     {
-        d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i + _countof(GShaderBytecodesNoWaveIntrinsics)], device, GShaderBytecodes[i].shaderBytecode, GShaderBytecodes[i].shaderBytecodeSizeInBytes);
+        for (uint32_t i = 0; i < kShaderWithWaveIntrinsicsCount; ++i)
+        {
+            d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i + kShaderNoWaveIntrinsicsCount], device, GShaderBytecodes[i].shaderBytecode, GShaderBytecodes[i].shaderBytecodeSizeInBytes);
+        }
+        kShaderCount += kShaderWithWaveIntrinsicsCount;
     }
-
     debugPrintF("Created D3D12 Resources and PSOs ...\n");
 
     perfData_PrintHeader();
