@@ -172,9 +172,6 @@ COMPILER_WARNING_POP()
     COMPILER_WARNING_POP()
 #endif
 
-COMPILER_WARNING_PUSH()
-COMPILER_WARNING_DISABLE_MSVC19(5045) /** warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified */
-
 static void debugPrint(const char *msg);
 static void debugPrintF(const char *format, ...);
 
@@ -201,9 +198,6 @@ static void debugPrintF(const char *format, ...);
         }                                                   \
     }                                                       \
     while(0)
-
-#include "d3d12aid.h"
-COMPILER_WARNING_POP()
 
 extern "C" { __declspec(dllexport) extern const UINT D3D12SDKVersion = D3D12_SDK_VERSION;}
 
