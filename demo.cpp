@@ -407,7 +407,7 @@ static void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, cons
 
 static const uint32_t kCmdBufferInFlight = 3;
 static const uint32_t kMaxSortKeysPerTg = 4096;
-static const uint32_t kBenchmarkFrameCount = 10;
+static const uint32_t kShaderBenchFrameCount = 10;
 
 int main(int argc, char **argv)
 {
@@ -443,7 +443,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
 
     const uint32_t kSortKeysPerDispatch = options1.TotalLaneCount * kMaxSortKeysPerTg;
 
-    uint64_t gpuTimestampDelta[kBenchmarkFrameCount * kShaderMaxCount + kCmdBufferInFlight];
+    uint64_t gpuTimestampDelta[kShaderBenchFrameCount * kShaderMaxCount];
     debugPrintF("Creating D3D12 Command Queue, Allocators and Lists ... ");
     d3d12aid_CmdQueue queue;
     d3d12aid_CmdQueue_Create(&queue, device, kCmdBufferInFlight, 1, D3D12_COMMAND_LIST_TYPE_DIRECT);
@@ -493,19 +493,43 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
 
     debugPrintF("Running benchmark ... ");
     uint32_t failCount = 0;
-    const uint32_t kFrameCount = kBenchmarkFrameCount * kShaderCount + kCmdBufferInFlight;
+
+#if USE_PIX
+    const uint32_t kPixFrameCount = (sharedData->options & 0x1) ? kShaderCount : 0u;
+#else
+    const uint32_t kPixFrameCount = 0u;
+#endif
+    const uint32_t kBenchFrameCount = kShaderBenchFrameCount * kShaderCount;
+    /** 'check' frames submit different shader per frame and read the result back for validation after `kCmdBufferInFlight` frames */
+    const uint32_t kCheckFrameCount = kShaderCount + kCmdBufferInFlight;
+
+    const uint32_t kCheckFrameStart = kBenchFrameCount;
+    const uint32_t kPixFrameStart = kCheckFrameStart + kCheckFrameCount;
+    const uint32_t kTotalFrameCount = kPixFrameStart + kPixFrameCount;
+
     uint32_t kCmdBufferIndex = 0;
-    for (uint32_t frameIndex = 0; frameIndex < kFrameCount; ++frameIndex)
+
+    for (uint32_t frameIndex = 0; frameIndex < kTotalFrameCount; ++frameIndex)
     {
-        // run each Shader/Kernel every 'kBenchmarkFrameCount' frames
-        const uint32_t dispatchShaderId = (frameIndex / kBenchmarkFrameCount) % kShaderCount;
+        uint32_t dispatchShaderId = 0;
+        if (frameIndex >= kPixFrameStart)
+        {
+            dispatchShaderId = frameIndex - kPixFrameStart;
+        }
+        else if (frameIndex >= kCheckFrameStart)
+        {
+            dispatchShaderId = (frameIndex - kCheckFrameStart) % kShaderCount;
+        }
+        else if (kBenchFrameCount > 0)
+        {
+            dispatchShaderId = (frameIndex / kShaderBenchFrameCount) % kShaderCount;
+        }
+
         const ShaderBytecode *dispatchShaderBytecode = shaders[dispatchShaderId];
         const uint32_t dispatchKernelSize = 1u << dispatchShaderBytecode->kernelSizeLog2;
         const uint32_t dispatchTGroupSize = 1u << dispatchShaderBytecode->tgroupSizeLog2;
 
-        // use only frame_0 of each benchmark
-#if USE_PIX
-        if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
+        if (frameIndex >= kPixFrameStart)
         {
             char buffer[256];
             wchar_t wbuffer[256];
@@ -517,9 +541,6 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
                 PIXBeginCapture(PIX_CAPTURE_GPU, &params);
             }
         }
-#else
-        (void)sharedData;
-#endif
 
         ID3D12GraphicsCommandList *cmdList = d3d12aid_CmdQueue_StartCmdList(&queue, 0);
 
@@ -541,9 +562,15 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
         const uint32_t dispatchKernelCountY = dispatchKernelCount / options1.TotalLaneCount;
         const uint32_t dispatchKernelCountX = options1.TotalLaneCount;
 
-        d3d12aid_Timestamps_Push(&timestamps, cmdList);
+        if (frameIndex < kBenchFrameCount)
+        {
+            d3d12aid_Timestamps_Push(&timestamps, cmdList);
+        }
         cmdList->Dispatch(dispatchKernelCountX, dispatchKernelCountY, 1);
-        d3d12aid_Timestamps_Push(&timestamps, cmdList);
+        if (frameIndex < kBenchFrameCount)
+        {
+            d3d12aid_Timestamps_Push(&timestamps, cmdList);
+        }
 
         {
             D3D12_RESOURCE_BARRIER barrier;
@@ -552,12 +579,20 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
         }
         d3d12aid_MappedBuffer_Transfer(cmdList, &sortOutput, kCmdBufferIndex);
 
-        if (frameIndex >= kCmdBufferInFlight)
+        if (frameIndex >= kCmdBufferInFlight && frameIndex < kPixFrameStart)
         {
             const uint32_t readbackFrameIndex = frameIndex - kCmdBufferInFlight;
-            gpuTimestampDelta[readbackFrameIndex] = d3d12aid_Timestamps_GetDelta(&timestamps, kCmdBufferIndex, 0, 1);
+            uint32_t readbackShaderId = 0;
+            if (readbackFrameIndex >= kCheckFrameStart)
+            {
+                readbackShaderId = (readbackFrameIndex - kCheckFrameStart) % kShaderCount;
+            }
+            else if (kBenchFrameCount > 0)
+            {
+                gpuTimestampDelta[readbackFrameIndex] = d3d12aid_Timestamps_GetDelta(&timestamps, kCmdBufferIndex, 0, 1);
+                readbackShaderId = (readbackFrameIndex / kShaderBenchFrameCount) % kShaderCount;
+            }
 
-            const uint32_t readbackShaderId = (readbackFrameIndex / kBenchmarkFrameCount) % kShaderCount;
             const uint32_t readbackKernelSize = 1u << shaders[readbackShaderId]->kernelSizeLog2;
 
             const uint32_t *readbackData = (const uint32_t *)sortOutput.bufMem[kCmdBufferIndex];
@@ -574,15 +609,15 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
             }
         }
 
-        d3d12aid_Timestamps_AdvanceFrame(&timestamps, cmdList);
+        if (frameIndex < kBenchFrameCount)
+        {
+            d3d12aid_Timestamps_AdvanceFrame(&timestamps, cmdList);
+        }
         d3d12aid_CmdQueue_SubmitCmdList(&queue, 0);
-
-#if USE_PIX
-        if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
+        if (frameIndex >= kPixFrameStart)
         {
             PIXEndCapture(FALSE);
         }
-#endif
 
         kCmdBufferIndex = (kCmdBufferIndex + 1) % kCmdBufferInFlight;
     }
@@ -611,18 +646,15 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     d3d12aid_CmdQueue_Release(&queue);
     debugPrintF("Completed.\n");
 
-    COMPILER_WARNING_PUSH()
-    COMPILER_WARNING_DISABLE_MSVC(4127)
-    if (kBenchmarkFrameCount > 0)
-    COMPILER_WARNING_POP()
+    if (kBenchFrameCount > 0)
     {
         PerfData perfData;
         perfData_PrintHeader();
-        for (uint32_t i = 0; i < kBenchmarkFrameCount * kShaderCount; ++i)
+        for (uint32_t i = 0; i < kBenchFrameCount; ++i)
         {
             const uint32_t readbackFrameIndex = i;
-            const uint32_t benchmarkFrameIndex = readbackFrameIndex % kBenchmarkFrameCount;
-            const uint32_t readbackShaderId = (readbackFrameIndex / kBenchmarkFrameCount) % kShaderCount;
+            const uint32_t benchmarkFrameIndex = readbackFrameIndex % kShaderBenchFrameCount;
+            const uint32_t readbackShaderId = (readbackFrameIndex / kShaderBenchFrameCount) % kShaderCount;
             const uint32_t readbackKernelSize = 1u << shaders[readbackShaderId]->kernelSizeLog2;
             const uint32_t readbackTGroupSize = 1u << shaders[readbackShaderId]->tgroupSizeLog2;
 
@@ -634,7 +666,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
             perfData_AddSample(&perfData, gpuTimestampDelta[readbackFrameIndex]);
 
             /** if it's a the last benchmark run for currently selected shader variant, print 'perfData' information */
-            if (benchmarkFrameIndex == kBenchmarkFrameCount - 1u)
+            if (benchmarkFrameIndex == kShaderBenchFrameCount - 1u)
             {
                 debugPrintF("[KernelSize=%4u, TGroupSize=%4u, WaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId >= kShaderNoWaveIntrinsicsCount ? 1 : 0);
                 // Per Lane
