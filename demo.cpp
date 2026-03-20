@@ -669,13 +669,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
             if (benchmarkFrameIndex == kShaderBenchFrameCount - 1u)
             {
                 debugPrintF("[KernelSize=%4u, TGroupSize=%4u, WaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId >= kShaderNoWaveIntrinsicsCount ? 1 : 0);
-                // Per Lane
-                //perfData_Print(&perfData, readbackKernelCount << GShaderBytecodes[readbackShaderId].tgroupSizeLog2);
 
-                // Per TG
-                //perfData_Print(&perfData, readbackKernelCount);
-
-                // Per Elem
                 perfData_Print(&perfData, kSortKeysPerDispatch);
             }
         }
