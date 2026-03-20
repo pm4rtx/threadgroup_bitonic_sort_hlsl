@@ -365,7 +365,7 @@ static void perfData_AddSample(PerfData *inoutPerfData, uint64_t sample)
 
 static void perfData_PrintHeader()
 {
-    debugPrintF("%*s | Min Time (us) | Max Time (us) | Mean Time (us) |       StdDev0 (us) |       StdDev1 (us) | Total Time (us) | Mean Time per Elem (ns) |\n", 54, "");
+    debugPrintF("%*s | GElem/s | Min Time (us) | Max Time (us) | Mean Time (us) |       StdDev0 (us) |       StdDev1 (us) | Total Time (us) | Mean Time per Elem (ns) |\n", 52, "");
 }
 
 static void perfData_Print(const PerfData *inPerfData, uint32_t workItemCount)
@@ -386,7 +386,8 @@ static void perfData_Print(const PerfData *inPerfData, uint32_t workItemCount)
 
     double avgTimeUsF64 = (double)avgTimeUs;
 
-    debugPrintF("| %13llu | %13llu | %14.3f | +/- %4.1f%% %8.3f | +/- %4.1f%% %8.3f | %15llu | %23.3f |\n",
+    debugPrintF("| %7.3f | %13llu | %13llu | %14.3f | +/- %4.1f%% %8.3f | +/- %4.1f%% %8.3f | %15llu | %23.3f |\n",
+        (double)workItemCount / (avgTimeUs * 1000.0),
         minTimeUs, maxTimeUs, avgTimeUs,
         popStdevTimeUs * 100.0 / avgTimeUsF64, popStdevTimeUs,
         smpStdevTimeUs * 100.0 / avgTimeUsF64, smpStdevTimeUs,
