@@ -1,69 +1,10 @@
+/**
+ * Copyright (C) 2025-2026, by Pavel Martishevsky
+ *
+ * This header is distributed under the MIT License. See notice at the end of this file.
+ */
 
-#ifndef COMPILER_PRAGMA_MSVC
-#   if defined(_MSC_VER)
-#       define COMPILER_PRAGMA_MSVC(x) __pragma(x)
-#   else
-#       define COMPILER_PRAGMA_MSVC(x)
-#   endif
-#endif /* COMPILER_PRAGMA_MSVC */
-
-#ifndef COMPILER_PRAGMA_GNUC
-#   if defined(__clang__) || defined(__GNUC__)
-#       define COMPILER_PRAGMA_GNUC(x) _Pragma(#x)
-#   else
-#       define COMPILER_PRAGMA_GNUC(x)
-#   endif
-#endif /* COMPILER_PRAGMA_GNUC */
-
-#ifndef COMPILER_WARNING_DISABLE_GNUC
-#   if defined(__clang__) || defined(__GNUC__)
-#       if defined(__clang__)
-#           define COMPILER_WARNING_GNUC_PUSH()     COMPILER_PRAGMA_GNUC(clang diagnostic push)
-#           define COMPILER_WARNING_GNUC_POP()      COMPILER_PRAGMA_GNUC(clang diagnostic pop)
-#           define COMPILER_WARNING_DISABLE_GNUC(w) COMPILER_PRAGMA_GNUC(clang diagnostic ignored #w)
-#       elif defined(__GNUC__)
-#           define COMPILER_WARNING_GNUC_PUSH()     COMPILER_PRAGMA_GNUC(GCC diagnostic push)
-#           define COMPILER_WARNING_GNUC_POP()      COMPILER_PRAGMA_GNUC(GCC diagnostic pop)
-#           define COMPILER_WARNING_DISABLE_GNUC(w) COMPILER_PRAGMA_GNUC(GCC diagnostic ignored #w)
-#       endif
-#   elif defined (_MSC_VER)
-#       define COMPILER_WARNING_GNUC_PUSH()
-#       define COMPILER_WARNING_GNUC_POP()
-#       define COMPILER_WARNING_DISABLE_GNUC(w)
-#   else
-#       error Unknown Compiler
-#   endif
-#endif /** COMPILER_WARNING_DISABLE_GNUC */
-
-#ifndef COMPILER_WARNING_DISABLE_MSVC
-#   if defined(_MSC_VER)
-#       define COMPILER_WARNING_MSVC_PUSH()     COMPILER_PRAGMA_MSVC(warning(push))
-#       define COMPILER_WARNING_MSVC_POP()      COMPILER_PRAGMA_MSVC(warning(pop))
-#       define COMPILER_WARNING_DISABLE_MSVC(w) COMPILER_PRAGMA_MSVC(warning(disable : w))
-#       if _MSC_VER >= 1912
-#           define COMPILER_WARNING_DISABLE_MSVC1912(w) COMPILER_PRAGMA_MSVC(warning(disable : w))
-#       else
-#           define COMPILER_WARNING_DISABLE_MSVC1912(w)
-#       endif
-#       if _MSC_VER >= 1920
-#           define COMPILER_WARNING_DISABLE_MSVC19(w) COMPILER_PRAGMA_MSVC(warning(disable : w))
-#       else
-#           define COMPILER_WARNING_DISABLE_MSVC19(w)
-#       endif
-#   elif defined(__clang__) || defined(__GNUC__)
-#       define COMPILER_WARNING_MSVC_PUSH()
-#       define COMPILER_WARNING_MSVC_POP()
-#       define COMPILER_WARNING_DISABLE_MSVC(w)
-#       define COMPILER_WARNING_DISABLE_MSVC19(w)
-#   else
-#       error Unknown Compiler
-#   endif
-#endif /** COMPILER_WARNING_DISABLE_MSVC */
-
-#if !defined(COMPILER_WARNING_PUSH) && !defined(COMPILER_WARNING_POP)
-#   define COMPILER_WARNING_PUSH() COMPILER_WARNING_MSVC_PUSH() COMPILER_WARNING_GNUC_PUSH()
-#   define COMPILER_WARNING_POP()  COMPILER_WARNING_MSVC_POP()  COMPILER_WARNING_GNUC_POP()
-#endif /** COMPILER_WARNING_PUSH/COMPILER_WARNING_POP */
+#include "compiler_warning.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -172,9 +113,6 @@ COMPILER_WARNING_POP()
     COMPILER_WARNING_POP()
 #endif
 
-COMPILER_WARNING_PUSH()
-COMPILER_WARNING_DISABLE_MSVC19(5045) /** warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified */
-
 static void debugPrint(const char *msg);
 static void debugPrintF(const char *format, ...);
 
@@ -195,7 +133,7 @@ static void debugPrintF(const char *format, ...);
     {                                                       \
         if (!(cond))                                        \
         {                                                   \
-            debugPrint("Assert with condition "#cond" failed.");  \
+            debugPrint("Assert with condition "#cond" failed.\n");  \
             if (IsDebuggerPresent())                        \
                 __debugbreak();                             \
         }                                                   \
@@ -203,7 +141,6 @@ static void debugPrintF(const char *format, ...);
     while(0)
 
 #include "d3d12aid.h"
-COMPILER_WARNING_POP()
 
 extern "C" { __declspec(dllexport) extern const UINT D3D12SDKVersion = D3D12_SDK_VERSION;}
 
@@ -265,7 +202,7 @@ static int benchmark_ForEachDevice(benchmark_ForEachDeviceCback *callback, void 
     load_module(&d3d12, L"d3d12.dll");
     load_CreateDXGIFactory2(&dxgi);
     load_D3D12CreateDevice(&d3d12);
-    D3D12AID_CHECK(fnCreateDXGIFactory2(0, IID_PPV_ARGS(&factory)));
+    D3D12AID_CHECK(fnCreateDXGIFactory2(0, D3D12AID_IID_PPV_ARGS(&factory)));
     IDXGIAdapter1 *adapter = NULL;
     for (uint32_t adapterIdx = 0; DXGI_ERROR_NOT_FOUND != factory->EnumAdapters1(adapterIdx, &adapter); ++adapterIdx)
     {
@@ -332,73 +269,55 @@ struct ShaderBytecode
 
 typedef struct ShaderBytecode ShaderBytecode;
 
+#define SHADER_LIST()\
+    SHADER(1 , 1 )\
+    SHADER(2 , 1 )\
+    SHADER(2 , 2 )\
+    SHADER(3 , 1 )\
+    SHADER(3 , 2 )\
+    SHADER(3 , 3 )\
+    SHADER(4 , 2 )\
+    SHADER(4 , 3 )\
+    SHADER(4 , 4 )\
+    SHADER(5 , 3 )\
+    SHADER(5 , 4 )\
+    SHADER(5 , 5 )\
+    SHADER(6 , 4 )\
+    SHADER(6 , 5 )\
+    SHADER(6 , 6 )\
+    SHADER(7 , 5 )\
+    SHADER(7 , 6 )\
+    SHADER(7 , 7 )\
+    SHADER(8 , 6 )\
+    SHADER(8 , 7 )\
+    SHADER(8 , 8 )\
+    SHADER(9 , 7 )\
+    SHADER(9 , 8 )\
+    SHADER(9 , 9 )\
+    SHADER(10, 8 )\
+    SHADER(10, 9 )\
+    SHADER(10, 10)\
+    SHADER(11, 9 )\
+    SHADER(11, 10)\
+    SHADER(12, 10)
+
 static const ShaderBytecode GShaderBytecodes[] =
 {
-    { 1 , 1 , sizeof(shader_threadgroup_bitonic_sort_1_1_0), shader_threadgroup_bitonic_sort_1_1_0 },
-    { 2 , 1 , sizeof(shader_threadgroup_bitonic_sort_2_1_0), shader_threadgroup_bitonic_sort_2_1_0 },
-    { 2 , 2 , sizeof(shader_threadgroup_bitonic_sort_2_2_0), shader_threadgroup_bitonic_sort_2_2_0 },
-    { 3 , 1 , sizeof(shader_threadgroup_bitonic_sort_3_1_0), shader_threadgroup_bitonic_sort_3_1_0 },
-    { 3 , 2 , sizeof(shader_threadgroup_bitonic_sort_3_2_0), shader_threadgroup_bitonic_sort_3_2_0 },
-    { 3 , 3 , sizeof(shader_threadgroup_bitonic_sort_3_3_0), shader_threadgroup_bitonic_sort_3_3_0 },
-    { 4 , 2 , sizeof(shader_threadgroup_bitonic_sort_4_2_0), shader_threadgroup_bitonic_sort_4_2_0 },
-    { 4 , 3 , sizeof(shader_threadgroup_bitonic_sort_4_3_0), shader_threadgroup_bitonic_sort_4_3_0 },
-    { 4 , 4 , sizeof(shader_threadgroup_bitonic_sort_4_4_0), shader_threadgroup_bitonic_sort_4_4_0 },
-    { 5 , 3 , sizeof(shader_threadgroup_bitonic_sort_5_3_0), shader_threadgroup_bitonic_sort_5_3_0 },
-    { 5 , 4 , sizeof(shader_threadgroup_bitonic_sort_5_4_0), shader_threadgroup_bitonic_sort_5_4_0 },
-    { 5 , 5 , sizeof(shader_threadgroup_bitonic_sort_5_5_0), shader_threadgroup_bitonic_sort_5_5_0 },
-    { 6 , 4 , sizeof(shader_threadgroup_bitonic_sort_6_4_0), shader_threadgroup_bitonic_sort_6_4_0 },
-    { 6 , 5 , sizeof(shader_threadgroup_bitonic_sort_6_5_0), shader_threadgroup_bitonic_sort_6_5_0 },
-    { 6 , 6 , sizeof(shader_threadgroup_bitonic_sort_6_6_0), shader_threadgroup_bitonic_sort_6_6_0 },
-    { 7 , 5 , sizeof(shader_threadgroup_bitonic_sort_7_5_0), shader_threadgroup_bitonic_sort_7_5_0 },
-    { 7 , 6 , sizeof(shader_threadgroup_bitonic_sort_7_6_0), shader_threadgroup_bitonic_sort_7_6_0 },
-    { 7 , 7 , sizeof(shader_threadgroup_bitonic_sort_7_7_0), shader_threadgroup_bitonic_sort_7_7_0 },
-    { 8 , 6 , sizeof(shader_threadgroup_bitonic_sort_8_6_0), shader_threadgroup_bitonic_sort_8_6_0 },
-    { 8 , 7 , sizeof(shader_threadgroup_bitonic_sort_8_7_0), shader_threadgroup_bitonic_sort_8_7_0 },
-    { 8 , 8 , sizeof(shader_threadgroup_bitonic_sort_8_8_0), shader_threadgroup_bitonic_sort_8_8_0 },
-    { 9 , 7 , sizeof(shader_threadgroup_bitonic_sort_9_7_0), shader_threadgroup_bitonic_sort_9_7_0 },
-    { 9 , 8 , sizeof(shader_threadgroup_bitonic_sort_9_8_0), shader_threadgroup_bitonic_sort_9_8_0 },
-    { 9 , 9 , sizeof(shader_threadgroup_bitonic_sort_9_9_0), shader_threadgroup_bitonic_sort_9_9_0 },
-    { 10, 8 , sizeof(shader_threadgroup_bitonic_sort_10_8_0), shader_threadgroup_bitonic_sort_10_8_0 },
-    { 10, 9 , sizeof(shader_threadgroup_bitonic_sort_10_9_0), shader_threadgroup_bitonic_sort_10_9_0 },
-    { 10, 10, sizeof(shader_threadgroup_bitonic_sort_10_10_0), shader_threadgroup_bitonic_sort_10_10_0 },
-    { 11, 9 , sizeof(shader_threadgroup_bitonic_sort_11_9_0), shader_threadgroup_bitonic_sort_11_9_0 },
-    { 11, 10, sizeof(shader_threadgroup_bitonic_sort_11_10_0), shader_threadgroup_bitonic_sort_11_10_0 },
-    { 12, 10, sizeof(shader_threadgroup_bitonic_sort_12_10_0), shader_threadgroup_bitonic_sort_12_10_0 }
+    #define SHADER(K, T) { K , T , sizeof(shader_threadgroup_bitonic_sort_##K##_##T##_0), shader_threadgroup_bitonic_sort_##K##_##T##_0 },
+    SHADER_LIST()
+    #undef  SHADER
 };
+static const uint32_t kShaderWithWaveIntrinsicsCount = _countof(GShaderBytecodes);
 
 static const ShaderBytecode GShaderBytecodesNoWaveIntrinsics[] =
 {
-    { 1 , 1 , sizeof(shader_threadgroup_bitonic_sort_1_1_1), shader_threadgroup_bitonic_sort_1_1_1 },
-    { 2 , 1 , sizeof(shader_threadgroup_bitonic_sort_2_1_1), shader_threadgroup_bitonic_sort_2_1_1 },
-    { 2 , 2 , sizeof(shader_threadgroup_bitonic_sort_2_2_1), shader_threadgroup_bitonic_sort_2_2_1 },
-    { 3 , 1 , sizeof(shader_threadgroup_bitonic_sort_3_1_1), shader_threadgroup_bitonic_sort_3_1_1 },
-    { 3 , 2 , sizeof(shader_threadgroup_bitonic_sort_3_2_1), shader_threadgroup_bitonic_sort_3_2_1 },
-    { 3 , 3 , sizeof(shader_threadgroup_bitonic_sort_3_3_1), shader_threadgroup_bitonic_sort_3_3_1 },
-    { 4 , 2 , sizeof(shader_threadgroup_bitonic_sort_4_2_1), shader_threadgroup_bitonic_sort_4_2_1 },
-    { 4 , 3 , sizeof(shader_threadgroup_bitonic_sort_4_3_1), shader_threadgroup_bitonic_sort_4_3_1 },
-    { 4 , 4 , sizeof(shader_threadgroup_bitonic_sort_4_4_1), shader_threadgroup_bitonic_sort_4_4_1 },
-    { 5 , 3 , sizeof(shader_threadgroup_bitonic_sort_5_3_1), shader_threadgroup_bitonic_sort_5_3_1 },
-    { 5 , 4 , sizeof(shader_threadgroup_bitonic_sort_5_4_1), shader_threadgroup_bitonic_sort_5_4_1 },
-    { 5 , 5 , sizeof(shader_threadgroup_bitonic_sort_5_5_1), shader_threadgroup_bitonic_sort_5_5_1 },
-    { 6 , 4 , sizeof(shader_threadgroup_bitonic_sort_6_4_1), shader_threadgroup_bitonic_sort_6_4_1 },
-    { 6 , 5 , sizeof(shader_threadgroup_bitonic_sort_6_5_1), shader_threadgroup_bitonic_sort_6_5_1 },
-    { 6 , 6 , sizeof(shader_threadgroup_bitonic_sort_6_6_1), shader_threadgroup_bitonic_sort_6_6_1 },
-    { 7 , 5 , sizeof(shader_threadgroup_bitonic_sort_7_5_1), shader_threadgroup_bitonic_sort_7_5_1 },
-    { 7 , 6 , sizeof(shader_threadgroup_bitonic_sort_7_6_1), shader_threadgroup_bitonic_sort_7_6_1 },
-    { 7 , 7 , sizeof(shader_threadgroup_bitonic_sort_7_7_1), shader_threadgroup_bitonic_sort_7_7_1 },
-    { 8 , 6 , sizeof(shader_threadgroup_bitonic_sort_8_6_1), shader_threadgroup_bitonic_sort_8_6_1 },
-    { 8 , 7 , sizeof(shader_threadgroup_bitonic_sort_8_7_1), shader_threadgroup_bitonic_sort_8_7_1 },
-    { 8 , 8 , sizeof(shader_threadgroup_bitonic_sort_8_8_1), shader_threadgroup_bitonic_sort_8_8_1 },
-    { 9 , 7 , sizeof(shader_threadgroup_bitonic_sort_9_7_1), shader_threadgroup_bitonic_sort_9_7_1 },
-    { 9 , 8 , sizeof(shader_threadgroup_bitonic_sort_9_8_1), shader_threadgroup_bitonic_sort_9_8_1 },
-    { 9 , 9 , sizeof(shader_threadgroup_bitonic_sort_9_9_1), shader_threadgroup_bitonic_sort_9_9_1 },
-    { 10, 8 , sizeof(shader_threadgroup_bitonic_sort_10_8_1), shader_threadgroup_bitonic_sort_10_8_1 },
-    { 10, 9 , sizeof(shader_threadgroup_bitonic_sort_10_9_1), shader_threadgroup_bitonic_sort_10_9_1 },
-    { 10, 10, sizeof(shader_threadgroup_bitonic_sort_10_10_1), shader_threadgroup_bitonic_sort_10_10_1 },
-    { 11, 9 , sizeof(shader_threadgroup_bitonic_sort_11_9_1), shader_threadgroup_bitonic_sort_11_9_1 },
-    { 11, 10, sizeof(shader_threadgroup_bitonic_sort_11_10_1), shader_threadgroup_bitonic_sort_11_10_1 },
-    { 12, 10, sizeof(shader_threadgroup_bitonic_sort_12_10_1), shader_threadgroup_bitonic_sort_12_10_1 }
+    #define SHADER(K, T) { K , T , sizeof(shader_threadgroup_bitonic_sort_##K##_##T##_1), shader_threadgroup_bitonic_sort_##K##_##T##_1 },
+    SHADER_LIST()
+    #undef  SHADER
 };
+static const uint32_t kShaderNoWaveIntrinsicsCount = _countof(GShaderBytecodesNoWaveIntrinsics);
+
+static const uint32_t kShaderMaxCount = kShaderWithWaveIntrinsicsCount + kShaderNoWaveIntrinsicsCount;
 
 typedef struct PerfData
 {
@@ -446,7 +365,7 @@ static void perfData_AddSample(PerfData *inoutPerfData, uint64_t sample)
 
 static void perfData_PrintHeader()
 {
-    debugPrintF("%*s | Min Time (us) | Max Time (us) | Mean Time (us) |       StdDev0 (us) |       StdDev1 (us) | Total Time (us) | Mean Time per Elem (ns) |\n", 54, "");
+    debugPrintF("%*s | GElem/s | Min Time (us) | Max Time (us) | Mean Time (us) |       StdDev0 (us) |       StdDev1 (us) | Total Time (us) | Mean Time per Elem (ns) |\n", 52, "");
 }
 
 static void perfData_Print(const PerfData *inPerfData, uint32_t workItemCount)
@@ -467,7 +386,8 @@ static void perfData_Print(const PerfData *inPerfData, uint32_t workItemCount)
 
     double avgTimeUsF64 = (double)avgTimeUs;
 
-    debugPrintF("| %13llu | %13llu | %14.3f | +/- %4.1f%% %8.3f | +/- %4.1f%% %8.3f | %15llu | %23.3f |\n",
+    debugPrintF("| %7.3f | %13llu | %13llu | %14.3f | +/- %4.1f%% %8.3f | +/- %4.1f%% %8.3f | %15llu | %23.3f |\n",
+        (double)workItemCount / (avgTimeUs * 1000.0),
         minTimeUs, maxTimeUs, avgTimeUs,
         popStdevTimeUs * 100.0 / avgTimeUsF64, popStdevTimeUs,
         smpStdevTimeUs * 100.0 / avgTimeUsF64, smpStdevTimeUs,
@@ -487,7 +407,7 @@ static void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, cons
 
 static const uint32_t kCmdBufferInFlight = 3;
 static const uint32_t kMaxSortKeysPerTg = 4096;
-static const uint32_t kBenchmarkFrameCount = 10;
+static const uint32_t kShaderBenchFrameCount = 10;
 
 int main(int argc, char **argv)
 {
@@ -523,16 +443,16 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
 
     const uint32_t kSortKeysPerDispatch = options1.TotalLaneCount * kMaxSortKeysPerTg;
 
+    uint64_t gpuTimestampDelta[kShaderBenchFrameCount * kShaderMaxCount];
+    debugPrintF("Creating D3D12 Command Queue, Allocators and Lists ... ");
     d3d12aid_CmdQueue queue;
     d3d12aid_CmdQueue_Create(&queue, device, kCmdBufferInFlight, 1, D3D12_COMMAND_LIST_TYPE_DIRECT);
-
-    debugPrintF("Created D3D12 Command Queue, Allocators and Lists ...\n");
+    debugPrintF("Completed.\n");
 
     uint64_t gpuTimestampFreq = 0;
     D3D12AID_CHECK(queue.queue->GetTimestampFrequency(&gpuTimestampFreq));
 
-    PerfData perfData;
-
+    debugPrintF("Creating D3D12 Resources and PSOs ... ");
     d3d12aid_Timestamps timestamps;
     d3d12aid_Timestamps_Create(&timestamps, device, 2, kCmdBufferInFlight);
 
@@ -550,51 +470,70 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     d3d12aid_MappedBuffer_Append(&sortInput, 0, randomSortInput, sizeof(uint32_t) * kSortKeysPerDispatch);
     free(randomSortInput);
 
-    const uint32_t kShaderMaxCount = _countof(GShaderBytecodesNoWaveIntrinsics) + _countof(GShaderBytecodes);
-
     // We test kernels w/ and w/o wave intrinsics support if possible
-    const uint32_t kShaderCount = _countof(GShaderBytecodesNoWaveIntrinsics) + (options1.WaveOps ? _countof(GShaderBytecodes) : 0);
-
     d3d12aid_ComputeRsPs rspsBitonicSort[kShaderMaxCount];
+    const ShaderBytecode *shaders[kShaderMaxCount];
 
-    for (uint32_t i = 0; i < _countof(GShaderBytecodesNoWaveIntrinsics); ++i)
+    uint32_t kShaderCount = kShaderNoWaveIntrinsicsCount;
+    for (uint32_t i = 0; i < kShaderNoWaveIntrinsicsCount; ++i)
     {
-        d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i], device, GShaderBytecodesNoWaveIntrinsics[i].shaderBytecode, GShaderBytecodesNoWaveIntrinsics[i].shaderBytecodeSizeInBytes);
+        shaders[i] = &GShaderBytecodesNoWaveIntrinsics[i];
+        d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i], device, shaders[i]->shaderBytecode, shaders[i]->shaderBytecodeSizeInBytes);
     }
-
-    for (uint32_t i = 0; i < _countof(GShaderBytecodes); ++i)
+    if (options1.WaveOps)
     {
-        d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i + _countof(GShaderBytecodesNoWaveIntrinsics)], device, GShaderBytecodes[i].shaderBytecode, GShaderBytecodes[i].shaderBytecodeSizeInBytes);
+        for (uint32_t i = kShaderNoWaveIntrinsicsCount; i < kShaderMaxCount; ++i)
+        {
+            shaders[i] = &GShaderBytecodes[i - kShaderNoWaveIntrinsicsCount];
+            d3d12aid_ComputeRsPs_Create(&rspsBitonicSort[i], device, shaders[i]->shaderBytecode, shaders[i]->shaderBytecodeSizeInBytes);
+        }
+        kShaderCount += kShaderWithWaveIntrinsicsCount;
     }
+    debugPrintF("Completed.\n");
 
-    debugPrintF("Created D3D12 Resources and PSOs ...\n");
+    debugPrintF("Running benchmark ... ");
+    uint32_t failCount = 0;
 
-    perfData_PrintHeader();
+#if USE_PIX
+    const uint32_t kPixFrameCount = (sharedData->options & 0x1) ? kShaderCount : 0u;
+#else
+    const uint32_t kPixFrameCount = 0u;
+#endif
+    const uint32_t kBenchFrameCount = kShaderBenchFrameCount * kShaderCount;
+    /** 'check' frames submit different shader per frame and read the result back for validation after `kCmdBufferInFlight` frames */
+    const uint32_t kCheckFrameCount = kShaderCount + kCmdBufferInFlight;
 
-    const uint32_t kFrameCount = kBenchmarkFrameCount * kShaderCount + kCmdBufferInFlight;
+    const uint32_t kCheckFrameStart = kBenchFrameCount;
+    const uint32_t kPixFrameStart = kCheckFrameStart + kCheckFrameCount;
+    const uint32_t kTotalFrameCount = kPixFrameStart + kPixFrameCount;
 
     uint32_t kCmdBufferIndex = 0;
-    for (uint32_t frameIndex = 0; frameIndex < kFrameCount; ++frameIndex)
+
+    for (uint32_t frameIndex = 0; frameIndex < kTotalFrameCount; ++frameIndex)
     {
-        // run each Shader/Kernel every 'kBenchmarkFrameCount' frames
-        const uint32_t dispatchShaderId = (frameIndex / kBenchmarkFrameCount) % kShaderCount;
-        const ShaderBytecode *dispatchShaderBytecode = NULL;
+        uint32_t dispatchShaderId = 0;
+        if (frameIndex >= kPixFrameStart)
+        {
+            dispatchShaderId = frameIndex - kPixFrameStart;
+        }
+        else if (frameIndex >= kCheckFrameStart)
+        {
+            dispatchShaderId = (frameIndex - kCheckFrameStart) % kShaderCount;
+        }
+        else if (kBenchFrameCount > 0)
+        {
+            dispatchShaderId = (frameIndex / kShaderBenchFrameCount) % kShaderCount;
+        }
 
-        if (dispatchShaderId >= _countof(GShaderBytecodesNoWaveIntrinsics))
-            dispatchShaderBytecode = &GShaderBytecodes[dispatchShaderId - _countof(GShaderBytecodesNoWaveIntrinsics)];
-        else
-            dispatchShaderBytecode = &GShaderBytecodesNoWaveIntrinsics[dispatchShaderId];
-
+        const ShaderBytecode *dispatchShaderBytecode = shaders[dispatchShaderId];
         const uint32_t dispatchKernelSize = 1u << dispatchShaderBytecode->kernelSizeLog2;
         const uint32_t dispatchTGroupSize = 1u << dispatchShaderBytecode->tgroupSizeLog2;
 
-        // use only frame_0 of each benchmark
-#if USE_PIX
-        if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
+        if (frameIndex >= kPixFrameStart)
         {
             char buffer[256];
             wchar_t wbuffer[256];
-            stbsp_snprintf(buffer, _countof(buffer), "%c:\\tg_bitonic_kernel_%u_tgroup_%u_waveintr_%u_%s.wpix", sharedData->captureDrive, dispatchKernelSize, dispatchTGroupSize, dispatchShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 1 : 0, deviceName);
+            stbsp_snprintf(buffer, _countof(buffer), "%c:\\tg_bitonic_kernel_%u_tgroup_%u_waveintr_%u_%s.wpix", sharedData->captureDrive, dispatchKernelSize, dispatchTGroupSize, dispatchShaderId >= kShaderNoWaveIntrinsicsCount ? 1 : 0, deviceName);
             if (0 != MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wbuffer, _countof(wbuffer)))
             {
                 PIXCaptureParameters params;
@@ -602,9 +541,6 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
                 PIXBeginCapture(PIX_CAPTURE_GPU, &params);
             }
         }
-#else
-        (void)sharedData;
-#endif
 
         ID3D12GraphicsCommandList *cmdList = d3d12aid_CmdQueue_StartCmdList(&queue, 0);
 
@@ -626,9 +562,15 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
         const uint32_t dispatchKernelCountY = dispatchKernelCount / options1.TotalLaneCount;
         const uint32_t dispatchKernelCountX = options1.TotalLaneCount;
 
-        d3d12aid_Timestamps_Push(&timestamps, cmdList);
+        if (frameIndex < kBenchFrameCount)
+        {
+            d3d12aid_Timestamps_Push(&timestamps, cmdList);
+        }
         cmdList->Dispatch(dispatchKernelCountX, dispatchKernelCountY, 1);
-        d3d12aid_Timestamps_Push(&timestamps, cmdList);
+        if (frameIndex < kBenchFrameCount)
+        {
+            d3d12aid_Timestamps_Push(&timestamps, cmdList);
+        }
 
         {
             D3D12_RESOURCE_BARRIER barrier;
@@ -637,73 +579,61 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
         }
         d3d12aid_MappedBuffer_Transfer(cmdList, &sortOutput, kCmdBufferIndex);
 
-        if (frameIndex >= kCmdBufferInFlight)
+        if (frameIndex >= kCmdBufferInFlight && frameIndex < kPixFrameStart)
         {
             const uint32_t readbackFrameIndex = frameIndex - kCmdBufferInFlight;
-            const uint64_t gpuTimestampDelta = d3d12aid_Timestamps_GetDelta(&timestamps, kCmdBufferIndex, 0, 1);
-
-            const uint32_t benchmarkFrameIndex = readbackFrameIndex % kBenchmarkFrameCount;
-
-            uint32_t readbackShaderId = (readbackFrameIndex / kBenchmarkFrameCount) % kShaderCount;
-
-            const ShaderBytecode *readbackShaderBytecode = NULL;
-
-            if (readbackShaderId >= _countof(GShaderBytecodesNoWaveIntrinsics))
-                readbackShaderBytecode = &GShaderBytecodes[readbackShaderId - _countof(GShaderBytecodesNoWaveIntrinsics)];
-            else
-                readbackShaderBytecode = &GShaderBytecodesNoWaveIntrinsics[readbackShaderId];
-
-            const uint32_t readbackKernelSize = 1u << readbackShaderBytecode->kernelSizeLog2;
-            const uint32_t readbackTGroupSize = 1u << readbackShaderBytecode->tgroupSizeLog2;
-
-            /** if it's a first benchmark run for currently selected shader variant, initialise 'perfData' */
-            if (benchmarkFrameIndex == 0)
+            uint32_t readbackShaderId = 0;
+            if (readbackFrameIndex >= kCheckFrameStart)
             {
-                perfData_Init(&perfData, gpuTimestampFreq);
+                readbackShaderId = (readbackFrameIndex - kCheckFrameStart) % kShaderCount;
+            }
+            else if (kBenchFrameCount > 0)
+            {
+                gpuTimestampDelta[readbackFrameIndex] = d3d12aid_Timestamps_GetDelta(&timestamps, kCmdBufferIndex, 0, 1);
+                readbackShaderId = (readbackFrameIndex / kShaderBenchFrameCount) % kShaderCount;
             }
 
-            perfData_AddSample(&perfData, gpuTimestampDelta);
-
-            /** if it's a the last benchmark run for currently selected shader variant, dump 'perfData' information */
-            if (benchmarkFrameIndex == kBenchmarkFrameCount - 1u)
-            {
-                //const uint32_t readbackKernelCount = (kSortKeysPerDispatch + readbackKernelSize - 1) >> readbackShaderBytecode->kernelSizeLog2;
-                debugPrintF("[KernelSize=%4u, TGroupSize=%4u, NoWaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId > _countof(GShaderBytecodesNoWaveIntrinsics) ? 0 : 1);
-                // Per Lane
-                //perfData_Print(&perfData, readbackKernelCount << GShaderBytecodes[readbackShaderId].tgroupSizeLog2);
-
-                // Per TG
-                //perfData_Print(&perfData, readbackKernelCount);
-
-                // Per Elem
-                perfData_Print(&perfData, kSortKeysPerDispatch);
-            }
+            const uint32_t readbackKernelSize = 1u << shaders[readbackShaderId]->kernelSizeLog2;
 
             const uint32_t *readbackData = (const uint32_t *)sortOutput.bufMem[kCmdBufferIndex];
             for (uint32_t i = 0; i < kSortKeysPerDispatch; i += readbackKernelSize)
             {
                 for (uint32_t j = i; j < i + readbackKernelSize - 1; ++j)
                 {
-                    D3D12AID_ASSERT(readbackData[j] >= readbackData[j + 1]);
+                    if (!(readbackData[j] >= readbackData[j + 1]))
+                    {
+                        failCount += 1;
+                        break;
+                    }
                 }
             }
         }
 
-        d3d12aid_Timestamps_AdvanceFrame(&timestamps, cmdList);
+        if (frameIndex < kBenchFrameCount)
+        {
+            d3d12aid_Timestamps_AdvanceFrame(&timestamps, cmdList);
+        }
         d3d12aid_CmdQueue_SubmitCmdList(&queue, 0);
-
-#if USE_PIX
-        if ((sharedData->options & 0x1) && (frameIndex % kBenchmarkFrameCount) == 0)
+        if (frameIndex >= kPixFrameStart)
         {
             PIXEndCapture(FALSE);
         }
-#endif
 
         kCmdBufferIndex = (kCmdBufferIndex + 1) % kCmdBufferInFlight;
     }
+    debugPrintF("Completed.\n");
 
+    debugPrintF("Waiting for GPU Idle ... ");
     d3d12aid_CmdQueue_CpuWaitForGpuIdle(&queue);
+    debugPrintF("Completed.\n");
 
+    D3D12AID_ASSERT(0 == failCount);
+    if (failCount > 0)
+    {
+        debugPrintF("# of failures: %u\n", failCount);
+    }
+
+    debugPrintF("Destroying D3D12 Objects ... ");
     for (uint32_t i = 0; i < kShaderCount; ++i)
     {
         d3d12aid_ComputeRsPs_Release(&rspsBitonicSort[i]);
@@ -714,5 +644,56 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     d3d12aid_Timestamps_Release(&timestamps);
 
     d3d12aid_CmdQueue_Release(&queue);
-    debugPrintF("Destroyed D3D12 Objects ...\n");
+    debugPrintF("Completed.\n");
+
+    if (kBenchFrameCount > 0)
+    {
+        PerfData perfData;
+        perfData_PrintHeader();
+        for (uint32_t i = 0; i < kBenchFrameCount; ++i)
+        {
+            const uint32_t readbackFrameIndex = i;
+            const uint32_t benchmarkFrameIndex = readbackFrameIndex % kShaderBenchFrameCount;
+            const uint32_t readbackShaderId = (readbackFrameIndex / kShaderBenchFrameCount) % kShaderCount;
+            const uint32_t readbackKernelSize = 1u << shaders[readbackShaderId]->kernelSizeLog2;
+            const uint32_t readbackTGroupSize = 1u << shaders[readbackShaderId]->tgroupSizeLog2;
+
+            /** if it's a the first benchmark run for currently selected shader variant, init 'perfData' information */
+            if (benchmarkFrameIndex == 0)
+            {
+                perfData_Init(&perfData, gpuTimestampFreq);
+            }
+            perfData_AddSample(&perfData, gpuTimestampDelta[readbackFrameIndex]);
+
+            /** if it's a the last benchmark run for currently selected shader variant, print 'perfData' information */
+            if (benchmarkFrameIndex == kShaderBenchFrameCount - 1u)
+            {
+                debugPrintF("[KernelSize=%4u, TGroupSize=%4u, WaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId >= kShaderNoWaveIntrinsicsCount ? 1 : 0);
+
+                perfData_Print(&perfData, kSortKeysPerDispatch);
+            }
+        }
+    }
 }
+
+/**
+ * Copyright (c) 2025-2026 Pavel Martishevsky
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */

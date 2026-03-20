@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2025, by Pavel Martishevsky
+ * Copyright (c) 2025-2026 Pavel Martishevsky
  *
  * This header is distributed under the MIT License. See notice at the end of this file.
  */
@@ -8,6 +8,8 @@
 
 #ifndef D3D12AID_H
 #define D3D12AID_H
+
+#include "compiler_warning.h"
 
 #ifdef _MSC_VER
 #   define D3D12AID_INLINE __forceinline
@@ -777,7 +779,6 @@ D3D12AID_API void d3d12aid_MappedBuffer_Append(d3d12aid_MappedBuffer *inoutBuffe
     if (inoutBuffer->heapType == D3D12_HEAP_TYPE_UPLOAD)
     {
         D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
-        D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
         D3D12AID_ASSERT(inoutBuffer->sizeInBytes >= inoutBuffer->offsInBytes + sizeInBytes);
 
         D3D12AID_MEMCPY((char *)inoutBuffer->bufMem[frameIndex] + inoutBuffer->offsInBytes, data, sizeInBytes);
@@ -789,7 +790,6 @@ D3D12AID_API void d3d12aid_MappedBuffer_Skip(d3d12aid_MappedBuffer* inoutBuffer,
 {
     if (inoutBuffer->heapType == D3D12_HEAP_TYPE_UPLOAD)
     {
-        D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
         D3D12AID_ASSERT(frameIndex < inoutBuffer->frameCount);
         D3D12AID_ASSERT(inoutBuffer->sizeInBytes >= inoutBuffer->offsInBytes + sizeInBytes);
 
@@ -1070,7 +1070,7 @@ D3D12AID_API ID3D12GraphicsCommandList *d3d12aid_CmdQueue_StartCmdList(d3d12aid_
 #endif /** D3D12AID_H */
 
 /**
- * Copyright (c) 2025 Pavel Martishevsky
+ * Copyright (c) 2025-2026 Pavel Martishevsky
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal

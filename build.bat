@@ -116,12 +116,11 @@ if "%no_shaders%"=="1" (
 )
 
 :: for a set of 'standard' ('std') flags that are shared between Debug/Release build for Microsoft Visual C++ compiler, we disable only
-::      -4514 - 'function' : unreferenced inline function has been removed
-::      -4505 - 'function' : unreferenced local function has been removed
-set msvc_compile_flags_std=/nologo /Zi /GR- /EHsc /Zl /permissive- /Wall /WX /WL /wd4514 /wd4505 /I %SRC_DIR%\.build_shaders
-:: for a set of flags for Debug build for Microsoft Visual C++ compiler, we disable
+::      - 4514 - 'function' : unreferenced inline function has been removed
+::      - 4505 - 'function' : unreferenced local function has been removed
 ::      - 5045 - Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
-set msvc_compile_flags_dbg=/Od /GS /RTCscu /D_ALLOW_RTCc_IN_STL=1 /D_DEBUG=1 /wd5045 %msvc_compile_flags_std%
+set msvc_compile_flags_std=/nologo /Zi /GR- /EHsc /Zl /permissive- /Wall /WX /WL /wd4514 /wd4505 /wd5045 /I %SRC_DIR%\.build_shaders
+set msvc_compile_flags_dbg=/Od /GS /RTCscu /D_ALLOW_RTCc_IN_STL=1 /D_DEBUG=1 %msvc_compile_flags_std%
 :: for a set of flags for Release/Optimised build for Microsoft Visual C++ compiler, we disable
 ::      - 4710 - 'function' : function not inlined
 ::      - 4711 - function 'function' selected for inline expansion
@@ -154,7 +153,7 @@ set msvc_link_libs_std=kernel32.lib shell32.lib ole32.lib
 set msvc_link_libs_opt=libcmt.lib libucrt.lib libvcruntime.lib %msvc_link_libs_std%
 set msvc_link_libs_dbg=msvcrtd.lib ucrtd.lib vcruntimed.lib %msvc_link_libs_std%
 
-set clang_compile_flags_std=-g -fno-rtti -Wall -Wextra -Werror -I %SRC_DIR%\.build_shaders
+set clang_compile_flags_std=-g -fno-rtti -Wall -Wextra -pedantic -Werror -Wno-language-extension-token -I %SRC_DIR%\.build_shaders
 set clang_compile_flags_dbg=-O0 -D_DEBUG=1 %clang_compile_flags_std%
 set clang_compile_flags_opt=-O3 -DNDEBUG=1 %clang_compile_flags_std%
 
