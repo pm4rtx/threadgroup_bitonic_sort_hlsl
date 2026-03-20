@@ -442,6 +442,8 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
 
     const uint32_t kSortKeysPerDispatch = options1.TotalLaneCount * kMaxSortKeysPerTg;
 
+    uint64_t gpuTimestampDelta[kBenchmarkFrameCount * kShaderMaxCount + kCmdBufferInFlight];
+
     d3d12aid_CmdQueue queue;
     d3d12aid_CmdQueue_Create(&queue, device, kCmdBufferInFlight, 1, D3D12_COMMAND_LIST_TYPE_DIRECT);
 
@@ -449,8 +451,6 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
 
     uint64_t gpuTimestampFreq = 0;
     D3D12AID_CHECK(queue.queue->GetTimestampFrequency(&gpuTimestampFreq));
-
-    PerfData perfData;
 
     d3d12aid_Timestamps timestamps;
     d3d12aid_Timestamps_Create(&timestamps, device, 2, kCmdBufferInFlight);
@@ -490,10 +490,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     }
     debugPrintF("Created D3D12 Resources and PSOs ...\n");
 
-    perfData_PrintHeader();
-
     const uint32_t kFrameCount = kBenchmarkFrameCount * kShaderCount + kCmdBufferInFlight;
-
     uint32_t kCmdBufferIndex = 0;
     for (uint32_t frameIndex = 0; frameIndex < kFrameCount; ++frameIndex)
     {
@@ -555,38 +552,10 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
         if (frameIndex >= kCmdBufferInFlight)
         {
             const uint32_t readbackFrameIndex = frameIndex - kCmdBufferInFlight;
-            const uint64_t gpuTimestampDelta = d3d12aid_Timestamps_GetDelta(&timestamps, kCmdBufferIndex, 0, 1);
+            gpuTimestampDelta[readbackFrameIndex] = d3d12aid_Timestamps_GetDelta(&timestamps, kCmdBufferIndex, 0, 1);
 
-            const uint32_t benchmarkFrameIndex = readbackFrameIndex % kBenchmarkFrameCount;
-
-            uint32_t readbackShaderId = (readbackFrameIndex / kBenchmarkFrameCount) % kShaderCount;
-
-            const ShaderBytecode *readbackShaderBytecode = shaders[readbackShaderId];
-            const uint32_t readbackKernelSize = 1u << readbackShaderBytecode->kernelSizeLog2;
-            const uint32_t readbackTGroupSize = 1u << readbackShaderBytecode->tgroupSizeLog2;
-
-            /** if it's a first benchmark run for currently selected shader variant, initialise 'perfData' */
-            if (benchmarkFrameIndex == 0)
-            {
-                perfData_Init(&perfData, gpuTimestampFreq);
-            }
-
-            perfData_AddSample(&perfData, gpuTimestampDelta);
-
-            /** if it's a the last benchmark run for currently selected shader variant, dump 'perfData' information */
-            if (benchmarkFrameIndex == kBenchmarkFrameCount - 1u)
-            {
-                //const uint32_t readbackKernelCount = (kSortKeysPerDispatch + readbackKernelSize - 1) >> readbackShaderBytecode->kernelSizeLog2;
-                debugPrintF("[KernelSize=%4u, TGroupSize=%4u, WaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId >= kShaderNoWaveIntrinsicsCount ? 1 : 0);
-                // Per Lane
-                //perfData_Print(&perfData, readbackKernelCount << GShaderBytecodes[readbackShaderId].tgroupSizeLog2);
-
-                // Per TG
-                //perfData_Print(&perfData, readbackKernelCount);
-
-                // Per Elem
-                perfData_Print(&perfData, kSortKeysPerDispatch);
-            }
+            const uint32_t readbackShaderId = (readbackFrameIndex / kBenchmarkFrameCount) % kShaderCount;
+            const uint32_t readbackKernelSize = 1u << shaders[readbackShaderId]->kernelSizeLog2;
 
             const uint32_t *readbackData = (const uint32_t *)sortOutput.bufMem[kCmdBufferIndex];
             for (uint32_t i = 0; i < kSortKeysPerDispatch; i += readbackKernelSize)
@@ -624,6 +593,44 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
 
     d3d12aid_CmdQueue_Release(&queue);
     debugPrintF("Destroyed D3D12 Objects ...\n");
+
+    COMPILER_WARNING_PUSH()
+    COMPILER_WARNING_DISABLE_MSVC(4127)
+    if (kBenchmarkFrameCount > 0)
+    COMPILER_WARNING_POP()
+    {
+        PerfData perfData;
+        perfData_PrintHeader();
+        for (uint32_t i = 0; i < kBenchmarkFrameCount * kShaderCount; ++i)
+        {
+            const uint32_t readbackFrameIndex = i;
+            const uint32_t benchmarkFrameIndex = readbackFrameIndex % kBenchmarkFrameCount;
+            const uint32_t readbackShaderId = (readbackFrameIndex / kBenchmarkFrameCount) % kShaderCount;
+            const uint32_t readbackKernelSize = 1u << shaders[readbackShaderId]->kernelSizeLog2;
+            const uint32_t readbackTGroupSize = 1u << shaders[readbackShaderId]->tgroupSizeLog2;
+
+            /** if it's a the first benchmark run for currently selected shader variant, init 'perfData' information */
+            if (benchmarkFrameIndex == 0)
+            {
+                perfData_Init(&perfData, gpuTimestampFreq);
+            }
+            perfData_AddSample(&perfData, gpuTimestampDelta[readbackFrameIndex]);
+
+            /** if it's a the last benchmark run for currently selected shader variant, print 'perfData' information */
+            if (benchmarkFrameIndex == kBenchmarkFrameCount - 1u)
+            {
+                debugPrintF("[KernelSize=%4u, TGroupSize=%4u, WaveIntrinsics=%1u] ", readbackKernelSize, readbackTGroupSize, readbackShaderId >= kShaderNoWaveIntrinsicsCount ? 1 : 0);
+                // Per Lane
+                //perfData_Print(&perfData, readbackKernelCount << GShaderBytecodes[readbackShaderId].tgroupSizeLog2);
+
+                // Per TG
+                //perfData_Print(&perfData, readbackKernelCount);
+
+                // Per Elem
+                perfData_Print(&perfData, kSortKeysPerDispatch);
+            }
+        }
+    }
 }
 
 /**
