@@ -133,7 +133,7 @@ static void debugPrintF(const char *format, ...);
     {                                                       \
         if (!(cond))                                        \
         {                                                   \
-            debugPrint("Assert with condition "#cond" failed.");  \
+            debugPrint("Assert with condition "#cond" failed.\n");  \
             if (IsDebuggerPresent())                        \
                 __debugbreak();                             \
         }                                                   \
@@ -491,6 +491,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     debugPrintF("Completed.\n");
 
     debugPrintF("Running benchmark ... ");
+    uint32_t failCount = 0;
     const uint32_t kFrameCount = kBenchmarkFrameCount * kShaderCount + kCmdBufferInFlight;
     uint32_t kCmdBufferIndex = 0;
     for (uint32_t frameIndex = 0; frameIndex < kFrameCount; ++frameIndex)
@@ -563,7 +564,11 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
             {
                 for (uint32_t j = i; j < i + readbackKernelSize - 1; ++j)
                 {
-                    D3D12AID_ASSERT(readbackData[j] >= readbackData[j + 1]);
+                    if (!(readbackData[j] >= readbackData[j + 1]))
+                    {
+                        failCount += 1;
+                        break;
+                    }
                 }
             }
         }
@@ -585,6 +590,12 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     debugPrintF("Waiting for GPU Idle ... ");
     d3d12aid_CmdQueue_CpuWaitForGpuIdle(&queue);
     debugPrintF("Completed.\n");
+
+    D3D12AID_ASSERT(0 == failCount);
+    if (failCount > 0)
+    {
+        debugPrintF("# of failures: %u\n", failCount);
+    }
 
     debugPrintF("Destroying D3D12 Objects ... ");
     for (uint32_t i = 0; i < kShaderCount; ++i)
