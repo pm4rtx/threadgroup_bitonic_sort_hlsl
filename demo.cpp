@@ -443,15 +443,15 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     const uint32_t kSortKeysPerDispatch = options1.TotalLaneCount * kMaxSortKeysPerTg;
 
     uint64_t gpuTimestampDelta[kBenchmarkFrameCount * kShaderMaxCount + kCmdBufferInFlight];
-
+    debugPrintF("Creating D3D12 Command Queue, Allocators and Lists ... ");
     d3d12aid_CmdQueue queue;
     d3d12aid_CmdQueue_Create(&queue, device, kCmdBufferInFlight, 1, D3D12_COMMAND_LIST_TYPE_DIRECT);
-
-    debugPrintF("Created D3D12 Command Queue, Allocators and Lists ...\n");
+    debugPrintF("Completed.\n");
 
     uint64_t gpuTimestampFreq = 0;
     D3D12AID_CHECK(queue.queue->GetTimestampFrequency(&gpuTimestampFreq));
 
+    debugPrintF("Creating D3D12 Resources and PSOs ... ");
     d3d12aid_Timestamps timestamps;
     d3d12aid_Timestamps_Create(&timestamps, device, 2, kCmdBufferInFlight);
 
@@ -488,8 +488,9 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
         }
         kShaderCount += kShaderWithWaveIntrinsicsCount;
     }
-    debugPrintF("Created D3D12 Resources and PSOs ...\n");
+    debugPrintF("Completed.\n");
 
+    debugPrintF("Running benchmark ... ");
     const uint32_t kFrameCount = kBenchmarkFrameCount * kShaderCount + kCmdBufferInFlight;
     uint32_t kCmdBufferIndex = 0;
     for (uint32_t frameIndex = 0; frameIndex < kFrameCount; ++frameIndex)
@@ -579,9 +580,13 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
 
         kCmdBufferIndex = (kCmdBufferIndex + 1) % kCmdBufferInFlight;
     }
+    debugPrintF("Completed.\n");
 
+    debugPrintF("Waiting for GPU Idle ... ");
     d3d12aid_CmdQueue_CpuWaitForGpuIdle(&queue);
+    debugPrintF("Completed.\n");
 
+    debugPrintF("Destroying D3D12 Objects ... ");
     for (uint32_t i = 0; i < kShaderCount; ++i)
     {
         d3d12aid_ComputeRsPs_Release(&rspsBitonicSort[i]);
@@ -592,7 +597,7 @@ void benchmark_threadgroup_bitonic_sort_Cback(IDXGIAdapter *adapter, const DXGI_
     d3d12aid_Timestamps_Release(&timestamps);
 
     d3d12aid_CmdQueue_Release(&queue);
-    debugPrintF("Destroyed D3D12 Objects ...\n");
+    debugPrintF("Completed.\n");
 
     COMPILER_WARNING_PUSH()
     COMPILER_WARNING_DISABLE_MSVC(4127)
