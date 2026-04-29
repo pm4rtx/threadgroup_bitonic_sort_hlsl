@@ -70,16 +70,33 @@
         while(0)
 #endif
 
+#ifdef __cplusplus
+#   define D3D12AID_CALL(object, method, ...)  ((object)->method(__VA_ARGS__))
+#   define D3D12AID_CALL0(object, method)      ((object)->method())
+#else
+#   define D3D12AID_CALL(object, method, ...)  ((object)->lpVtbl->method((object), __VA_ARGS__))
+#   define D3D12AID_CALL0(object, method)      ((object)->lpVtbl->method((object)))
+#endif
+
+#ifndef D3D12AID_CALL_CHECK
+#   define D3D12AID_CALL_CHECK(object, method, ...)  D3D12AID_CHECK(D3D12AID_CALL(object, method, __VA_ARGS__))
+#endif
+
+#ifndef D3D12AID_CALL0_CHECK
+#   define D3D12AID_CALL0_CHECK(object, method)      D3D12AID_CHECK(D3D12AID_CALL0((object), method))
+#endif
+
 #ifndef D3D12AID_SAFE_RELEASE
-#   define D3D12AID_SAFE_RELEASE(p)     \
-        do                              \
-        {                               \
-            if (NULL != (p))            \
-            {                           \
-                (p)->Release();         \
-                (p) = NULL;             \
-            }                           \
-        }                               \
+#   define D3D12AID_SAFE_RELEASE(p)         \
+        do                                  \
+        {                                   \
+            IUnknown *u = (IUnknown *)(p);  \
+            if (NULL != u)                  \
+            {                               \
+                D3D12AID_CALL0(u, Release); \
+                (p) = NULL;                 \
+            }                               \
+        }                                   \
         while(0)
 #endif
 
@@ -106,7 +123,7 @@ D3D12AID_API ID3D12QueryHeap *d3d12aid_QueryHeap_CreateTimestamps(ID3D12Device *
     desc.Count     = count;
     desc.NodeMask  = 0x1;
 
-    D3D12AID_CHECK(device->CreateQueryHeap(&desc, D3D12AID_IID_PPV_ARGS(ID3D12QueryHeap, &heap)));
+    D3D12AID_CALL_CHECK(device, CreateQueryHeap, &desc, D3D12AID_IID_PPV_ARGS(ID3D12QueryHeap, &heap));
     return heap;
 }
 
@@ -148,7 +165,7 @@ D3D12AID_API ID3D12Heap *d3d12aid_Heap_Create_WithHeapPropsAndFlags(ID3D12Device
     desc.Properties     = *heapProps;
     desc.Alignment      = alignment;
     desc.Flags          = heapFlags;
-    D3D12AID_CHECK(device->CreateHeap(&desc, D3D12AID_IID_PPV_ARGS(ID3D12Heap, &heap)));
+    D3D12AID_CALL_CHECK(device, CreateHeap, &desc, D3D12AID_IID_PPV_ARGS(ID3D12Heap, &heap));
     return heap;
 }
 
@@ -177,28 +194,28 @@ D3D12AID_API ID3D12DescriptorHeap *d3d12aid_DescriptorHeap_Create(ID3D12Device *
     desc.NumDescriptors = descCount;
     desc.Flags          = heapFlags;
     desc.NodeMask       = 0x1u;
-    D3D12AID_CHECK(device->CreateDescriptorHeap(&desc, D3D12AID_IID_PPV_ARGS(ID3D12DescriptorHeap, &heap)));
+    D3D12AID_CALL_CHECK(device, CreateDescriptorHeap, &desc, D3D12AID_IID_PPV_ARGS(ID3D12DescriptorHeap, &heap));
     return heap;
 }
 
 D3D12AID_API D3D12_CPU_DESCRIPTOR_HANDLE d3d12aid_DescriptorHeap_GetCpuStart(ID3D12DescriptorHeap *heap)
 {
-#if defined(_MSC_VER) || !defined(_WIN32)
-    return heap->GetCPUDescriptorHandleForHeapStart();
+#if (defined(__cplusplus) && defined(_MSC_VER)) || !defined(_WIN32)
+    return D3D12AID_CALL0(heap, GetCPUDescriptorHandleForHeapStart);
 #else
     D3D12_CPU_DESCRIPTOR_HANDLE handle;
-    heap->GetCPUDescriptorHandleForHeapStart(&handle);
+    D3D12AID_CALL(heap, GetCPUDescriptorHandleForHeapStart, &handle);
     return handle;
 #endif
 }
 
 D3D12AID_API D3D12_GPU_DESCRIPTOR_HANDLE d3d12aid_DescriptorHeap_GetGpuStart(ID3D12DescriptorHeap *heap)
 {
-#if defined(_MSC_VER) || !defined(_WIN32)
-    return heap->GetGPUDescriptorHandleForHeapStart();
+#if (defined(__cplusplus) && defined(_MSC_VER)) || !defined(_WIN32)
+    return D3D12AID_CALL0(heap, GetGPUDescriptorHandleForHeapStart);
 #else
     D3D12_GPU_DESCRIPTOR_HANDLE handle;
-    heap->GetGPUDescriptorHandleForHeapStart(&handle);
+    D3D12AID_CALL(heap, GetGPUDescriptorHandleForHeapStart, &handle);
     return handle;
 #endif
 }
@@ -253,7 +270,7 @@ D3D12AID_API ID3D12Resource *d3d12aid_Resource_CreateCommitted_Passthrough(ID3D1
      *  NOTE:   Below we checks "clear" value is specified only for RT/DS resources.
      */
     D3D12AID_ASSERT((NULL == clear) == (0 == (desc->Flags & (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL))));
-    D3D12AID_CHECK(device->CreateCommittedResource(heapProps, heapFlags, desc, state, clear, D3D12AID_IID_PPV_ARGS(ID3D12Resource, &resource)));
+    D3D12AID_CALL_CHECK(device, CreateCommittedResource, heapProps, heapFlags, desc, state, clear, D3D12AID_IID_PPV_ARGS(ID3D12Resource, &resource));
     return resource;
 }
 /**
@@ -340,7 +357,7 @@ D3D12AID_API void *d3d12aid_Resource_MapSubresourceReadRange(ID3D12Resource *res
     range.Begin = offsetInBytes;
     range.End   = offsetInBytes + sizeInBytes;
 
-    D3D12AID_CHECK(resource->Map(subresourceIdx, &range, &mappedMemory));
+    D3D12AID_CALL_CHECK(resource, Map, subresourceIdx, &range, &mappedMemory);
     return mappedMemory;
 }
 
@@ -353,7 +370,7 @@ D3D12AID_API void *d3d12aid_Resource_MapSubresourceRead(ID3D12Resource *resource
      *  "This indicates the region the CPU might read, and the coordinates are subresource-relative.
      *   A null pointer indicates the entire subresource might be read by the CPU."
      */
-    D3D12AID_CHECK(resource->Map(subresourceIdx, NULL, &mappedMemory));
+    D3D12AID_CALL_CHECK(resource, Map, subresourceIdx, NULL, &mappedMemory);
     return mappedMemory;
 }
 
@@ -374,7 +391,7 @@ D3D12AID_API void *d3d12aid_Resource_MapSubresourceWrite(ID3D12Resource *resourc
     range.Begin = 0;
     range.End   = 0;
 
-    D3D12AID_CHECK(resource->Map(subresourceIdx, &range, &mappedMemory));
+    D3D12AID_CALL_CHECK(resource, Map, subresourceIdx, &range, &mappedMemory);
     return mappedMemory;
 }
 
@@ -487,7 +504,7 @@ D3D12AID_API D3D12_UNORDERED_ACCESS_VIEW_DESC *d3d12aid_UAV_InitAsTypedBuffer(D3
 D3D12AID_API ID3D12RootSignature *d3d12aid_RootSignature_Create(ID3D12Device *device, const void *shaderBytecode, size_t shaderBytecodeSizeInBytes)
 {
     ID3D12RootSignature *rs = NULL;
-    D3D12AID_CHECK(device->CreateRootSignature(0x1, shaderBytecode, shaderBytecodeSizeInBytes, D3D12AID_IID_PPV_ARGS(ID3D12RootSignature, &rs)));
+    D3D12AID_CALL_CHECK(device, CreateRootSignature, 0x1, shaderBytecode, shaderBytecodeSizeInBytes, D3D12AID_IID_PPV_ARGS(ID3D12RootSignature, &rs));
     return rs;
 }
 
@@ -496,12 +513,13 @@ D3D12AID_API ID3D12PipelineState *d3d12aid_PipelineState_CreateCompute(ID3D12Dev
     D3D12_COMPUTE_PIPELINE_STATE_DESC desc;
     ID3D12PipelineState *ps = NULL;
     desc.pRootSignature                   = rs;
-    desc.CS                               = { shaderBytecode, shaderBytecodeSizeInBytes };
+    desc.CS.pShaderBytecode               = shaderBytecode;
+    desc.CS.BytecodeLength                = shaderBytecodeSizeInBytes;
     desc.NodeMask                         = 0x1;
     desc.CachedPSO.pCachedBlob            = NULL;
     desc.CachedPSO.CachedBlobSizeInBytes  = 0;
     desc.Flags                            = D3D12_PIPELINE_STATE_FLAG_NONE;
-    D3D12AID_CHECK(device->CreateComputePipelineState(&desc, D3D12AID_IID_PPV_ARGS(ID3D12PipelineState, &ps)));
+    D3D12AID_CALL_CHECK(device, CreateComputePipelineState, &desc, D3D12AID_IID_PPV_ARGS(ID3D12PipelineState, &ps));
     return ps;
 }
 
@@ -511,7 +529,9 @@ struct d3d12aid_ComputeRsPs
     ID3D12PipelineState *ps;
 };
 
+#ifndef __cplusplus
 typedef struct d3d12aid_ComputeRsPs d3d12aid_ComputeRsPs;
+#endif
 
 D3D12AID_API void d3d12aid_ComputeRsPs_Create(d3d12aid_ComputeRsPs *outComputeRsPs, ID3D12Device *device, const void *shaderBytecode, size_t shaderBytecodeSizeInBytes)
 {
@@ -527,8 +547,8 @@ D3D12AID_API void d3d12aid_ComputeRsPs_Release(d3d12aid_ComputeRsPs *computeRsPs
 
 D3D12AID_API void d3d12aid_ComputeRsPs_Set(const d3d12aid_ComputeRsPs *computeRsPs, ID3D12GraphicsCommandList *cmdList)
 {
-    cmdList->SetPipelineState(computeRsPs->ps);
-    cmdList->SetComputeRootSignature(computeRsPs->rs);
+    D3D12AID_CALL(cmdList, SetPipelineState, computeRsPs->ps);
+    D3D12AID_CALL(cmdList, SetComputeRootSignature, computeRsPs->rs);
 }
 
 struct d3d12aid_Timestamps
@@ -547,7 +567,9 @@ struct d3d12aid_Timestamps
     uint32_t         padding;
 };
 
-typedef d3d12aid_Timestamps d3d12aid_Timestamps;
+#ifndef __cplusplus
+typedef struct d3d12aid_Timestamps d3d12aid_Timestamps;
+#endif
 
 D3D12AID_API void d3d12aid_Timestamps_Create(d3d12aid_Timestamps *outTimestamps, ID3D12Device *device, uint32_t perFrameTimestampCount, uint32_t latencyFrameCount)
 {
@@ -574,7 +596,7 @@ D3D12AID_API void d3d12aid_Timestamps_Create(d3d12aid_Timestamps *outTimestamps,
 
 D3D12AID_API void d3d12aid_Timestamps_Release(d3d12aid_Timestamps *timestamps)
 {
-    timestamps->readbackBuf->Unmap(0, NULL);
+    D3D12AID_CALL(timestamps->readbackBuf, Unmap, 0, NULL);
 
     D3D12AID_SAFE_RELEASE(timestamps->readbackBuf);
     D3D12AID_SAFE_RELEASE(timestamps->heap);
@@ -584,7 +606,7 @@ D3D12AID_API void d3d12aid_Timestamps_AdvanceFrame(d3d12aid_Timestamps *timestam
 {
     uint32_t queryStart = (timestamps->latencyFrameIndex ++ % timestamps->latencyFrameCount) * timestamps->allocatedSlotCount;
 
-    cmdList->ResolveQueryData(timestamps->heap, D3D12_QUERY_TYPE_TIMESTAMP, queryStart, timestamps->activatedSlotCount, timestamps->readbackBuf, queryStart * sizeof(uint64_t));
+    D3D12AID_CALL(cmdList, ResolveQueryData, timestamps->heap, D3D12_QUERY_TYPE_TIMESTAMP, queryStart, timestamps->activatedSlotCount, timestamps->readbackBuf, queryStart * sizeof(uint64_t));
 
     timestamps->activatedSlotStart = (timestamps->latencyFrameIndex % timestamps->latencyFrameCount) * timestamps->allocatedSlotCount;
     timestamps->activatedSlotCount = 0;
@@ -593,7 +615,7 @@ D3D12AID_API void d3d12aid_Timestamps_AdvanceFrame(d3d12aid_Timestamps *timestam
 D3D12AID_API uint32_t d3d12aid_Timestamps_Push(d3d12aid_Timestamps *timestamps, ID3D12GraphicsCommandList *cmdList)
 {
     D3D12AID_ASSERT(timestamps->activatedSlotCount < timestamps->allocatedSlotCount);
-    cmdList->EndQuery(timestamps->heap, D3D12_QUERY_TYPE_TIMESTAMP, timestamps->activatedSlotStart + timestamps->activatedSlotCount);
+    D3D12AID_CALL(cmdList, EndQuery, timestamps->heap, D3D12_QUERY_TYPE_TIMESTAMP, timestamps->activatedSlotStart + timestamps->activatedSlotCount);
     return timestamps->activatedSlotCount ++;
 }
 
@@ -627,7 +649,9 @@ struct d3d12aid_DescriptorStack
     D3D12_CPU_DESCRIPTOR_HANDLE cpuStartRead;
 };
 
+#ifndef __cplusplus
 typedef struct d3d12aid_DescriptorStack d3d12aid_DescriptorStack;
+#endif
 
 D3D12AID_API void d3d12aid_DescriptorStack_Create(d3d12aid_DescriptorStack *outStack, ID3D12Device *device, uint32_t descCount, D3D12_DESCRIPTOR_HEAP_TYPE heapType)
 {
@@ -636,17 +660,17 @@ D3D12AID_API void d3d12aid_DescriptorStack_Create(d3d12aid_DescriptorStack *outS
     {
         heapFlags |= D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     }
-    device->AddRef();
+    D3D12AID_CALL0(device, AddRef);
     outStack->device        = device;
     outStack->heap          = d3d12aid_DescriptorHeap_Create(device, descCount, heapType, heapFlags);
     outStack->heapRead      = NULL;
     outStack->heapType      = heapType;
     outStack->descCount     = descCount;
-    outStack->descSize      = device->GetDescriptorHandleIncrementSize(heapType);
+    outStack->descSize      = D3D12AID_CALL(device, GetDescriptorHandleIncrementSize, heapType);
     outStack->descUsed      = 0;
     outStack->cpuStart      = d3d12aid_DescriptorHeap_GetCpuStart(outStack->heap);
-    outStack->gpuStart      = { 0 };
-    outStack->cpuStartRead  = { 0 };
+    outStack->gpuStart.ptr  = 0;
+    outStack->cpuStartRead.ptr = 0;
     if (heapFlags & D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE)
     {
         outStack->gpuStart = d3d12aid_DescriptorHeap_GetGpuStart(outStack->heap);
@@ -664,13 +688,16 @@ D3D12AID_API void d3d12aid_DescriptorStack_Create(d3d12aid_DescriptorStack *outS
     {                                                                                       \
         D3D12AID_ASSERT(stack->heapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);         \
         D3D12AID_ASSERT(stack->descUsed < stack->descCount);                                \
-        const uint32_t descIdx = stack->descUsed ++;                                        \
-        const uint32_t descOfs = stack->descSize * descIdx;                                 \
-        D3D12_CPU_DESCRIPTOR_HANDLE dstHandle       = { stack->cpuStart.ptr + descOfs };    \
-        D3D12_GPU_DESCRIPTOR_HANDLE dstHandleGpu    = { stack->gpuStart.ptr + descOfs };    \
-        D3D12_CPU_DESCRIPTOR_HANDLE dstHandleRead   = { stack->cpuStartRead.ptr + descOfs };\
-        stack->device->method(__VA_ARGS__, dstHandle);                                      \
-        stack->device->method(__VA_ARGS__, dstHandleRead);                                  \
+        uint32_t descIdx = stack->descUsed ++;                                              \
+        uint32_t descOfs = stack->descSize * descIdx;                                       \
+        D3D12_CPU_DESCRIPTOR_HANDLE dstHandle;                                              \
+        D3D12_GPU_DESCRIPTOR_HANDLE dstHandleGpu;                                           \
+        D3D12_CPU_DESCRIPTOR_HANDLE dstHandleRead;                                          \
+        dstHandle.ptr = stack->cpuStart.ptr + descOfs;                                      \
+        dstHandleGpu.ptr = stack->gpuStart.ptr + descOfs;                                   \
+        dstHandleRead.ptr = stack->cpuStartRead.ptr + descOfs;                              \
+        D3D12AID_CALL(stack->device, method, __VA_ARGS__, dstHandle);                       \
+        D3D12AID_CALL(stack->device, method, __VA_ARGS__, dstHandleRead);                   \
         return dstHandleGpu;                                                                \
     }                                                                                       \
     while (0)
@@ -718,7 +745,9 @@ struct d3d12aid_MappedBuffer
     D3D12_HEAP_TYPE heapType;
 };
 
+#ifndef __cplusplus
 typedef struct d3d12aid_MappedBuffer d3d12aid_MappedBuffer;
+#endif
 
 D3D12AID_API void d3d12aid_MappedBuffer_Create(d3d12aid_MappedBuffer *outBuffer, ID3D12Device *device, uint32_t frameCount, uint32_t sizeInBytes, D3D12_HEAP_TYPE heapType)
 {
@@ -770,7 +799,7 @@ D3D12AID_API void d3d12aid_MappedBuffer_Release(d3d12aid_MappedBuffer *inoutBuff
 {
     for (uint32_t i = 0; i < inoutBuffer->frameCount; ++i)
     {
-        inoutBuffer->bufCpu[i]->Unmap(0, NULL);
+        D3D12AID_CALL(inoutBuffer->bufCpu[i], Unmap, 0, NULL);
         inoutBuffer->bufMem[i] = NULL;
     }
     for (uint32_t i = 0; i < inoutBuffer->frameCount; ++i)
@@ -810,17 +839,17 @@ D3D12AID_API void d3d12aid_MappedBuffer_Transfer(ID3D12GraphicsCommandList *cmdL
     {
         if (inoutBuffer->offsInBytes == inoutBuffer->sizeInBytes)
         {
-            cmdList->CopyResource(inoutBuffer->bufGpu, inoutBuffer->bufCpu[frameIndex]);
+            D3D12AID_CALL(cmdList, CopyResource, inoutBuffer->bufGpu, inoutBuffer->bufCpu[frameIndex]);
         }
         else
         {
-            cmdList->CopyBufferRegion(inoutBuffer->bufGpu, 0, inoutBuffer->bufCpu[frameIndex], 0, inoutBuffer->offsInBytes);
+            D3D12AID_CALL(cmdList, CopyBufferRegion, inoutBuffer->bufGpu, 0, inoutBuffer->bufCpu[frameIndex], 0, inoutBuffer->offsInBytes);
             inoutBuffer->offsInBytes = 0;
         }
     }
     else if (inoutBuffer->heapType == D3D12_HEAP_TYPE_READBACK)
     {
-        cmdList->CopyResource(inoutBuffer->bufCpu[frameIndex], inoutBuffer->bufGpu);
+        D3D12AID_CALL(cmdList, CopyResource, inoutBuffer->bufCpu[frameIndex], inoutBuffer->bufGpu);
     }
 }
 
@@ -872,7 +901,9 @@ struct d3d12aid_CmdQueue
 #endif
 };
 
+#ifndef __cplusplus
 typedef struct d3d12aid_CmdQueue d3d12aid_CmdQueue;
+#endif
 
 D3D12AID_API void d3d12aid_CmdQueue_Create(d3d12aid_CmdQueue *outQueue, ID3D12Device *device, uint32_t frameCount, uint32_t listCountPerFrame, D3D12_COMMAND_LIST_TYPE cmdQueueType)
 {
@@ -887,8 +918,8 @@ D3D12AID_API void d3d12aid_CmdQueue_Create(d3d12aid_CmdQueue *outQueue, ID3D12De
     queueDesc.NodeMask  = 0x1;
 
     outQueue->device = device;
-    outQueue->device->AddRef();
-    D3D12AID_CHECK(device->CreateCommandQueue(&queueDesc, D3D12AID_IID_PPV_ARGS(ID3D12CommandQueue, &outQueue->queue)));
+    D3D12AID_CALL0(outQueue->device, AddRef);
+    D3D12AID_CALL_CHECK(device, CreateCommandQueue, &queueDesc, D3D12AID_IID_PPV_ARGS(ID3D12CommandQueue, &outQueue->queue));
 
     outQueue->cmdAllocCount = frameCount * listCountPerFrame;
 
@@ -897,10 +928,10 @@ D3D12AID_API void d3d12aid_CmdQueue_Create(d3d12aid_CmdQueue *outQueue, ID3D12De
     /** create a fence with `outQueue->fenceValue` value set (originally set to zero, but could be set to anything) */
     outQueue->fenceValue = 0;
 
-    D3D12AID_CHECK(device->CreateFence(outQueue->fenceValue, D3D12_FENCE_FLAG_NONE, D3D12AID_IID_PPV_ARGS(ID3D12Fence, &outQueue->fence)));
+    D3D12AID_CALL_CHECK(device, CreateFence, outQueue->fenceValue, D3D12_FENCE_FLAG_NONE, D3D12AID_IID_PPV_ARGS(ID3D12Fence, &outQueue->fence));
 
     /** query back the completed value and advanced at the same time*/
-    outQueue->fenceValue = outQueue->fence->GetCompletedValue();
+    outQueue->fenceValue = D3D12AID_CALL0(outQueue->fence, GetCompletedValue);
 
     /** initially all submit fences are set to the last completed value of the fence */
     for (uint32_t i = 0; i < outQueue->cmdAllocCount; ++i)
@@ -914,7 +945,7 @@ D3D12AID_API void d3d12aid_CmdQueue_Create(d3d12aid_CmdQueue *outQueue, ID3D12De
 
     /** initialise the allocators with the `Type` of the queue they are bound to */
     for (uint32_t i = 0; i < outQueue->cmdAllocCount; ++i)
-        D3D12AID_CHECK(device->CreateCommandAllocator(queueDesc.Type, D3D12AID_IID_PPV_ARGS(ID3D12CommandAllocator, &outQueue->cmdAllocs[i])));
+        D3D12AID_CALL_CHECK(device, CreateCommandAllocator, queueDesc.Type, D3D12AID_IID_PPV_ARGS(ID3D12CommandAllocator, &outQueue->cmdAllocs[i]));
 
     for (uint32_t i = outQueue->cmdAllocCount; i < D3D12AID_CMD_QUEUE_ALLOC_MAX_COUNT; ++i)
         outQueue->cmdAllocs[i] = NULL;
@@ -922,9 +953,9 @@ D3D12AID_API void d3d12aid_CmdQueue_Create(d3d12aid_CmdQueue *outQueue, ID3D12De
     /** initialise the lists with the `Type` and `NodeMask` of the queue they are bound to */
     for (uint32_t i = 0; i < outQueue->cmdListCount; ++i)
     {
-        D3D12AID_CHECK(device->CreateCommandList(queueDesc.NodeMask, queueDesc.Type, outQueue->cmdAllocs[i], NULL, D3D12AID_IID_PPV_ARGS(ID3D12GraphicsCommandList, &outQueue->cmdLists[i])));
+        D3D12AID_CALL_CHECK(device, CreateCommandList, queueDesc.NodeMask, queueDesc.Type, outQueue->cmdAllocs[i], NULL, D3D12AID_IID_PPV_ARGS(ID3D12GraphicsCommandList, &outQueue->cmdLists[i]));
 
-        outQueue->cmdLists[i]->Close();
+        D3D12AID_CALL0(outQueue->cmdLists[i], Close);
     }
 
     for (uint32_t i = outQueue->cmdListCount; i < D3D12AID_CMD_QUEUE_LIST_MAX_COUNT_PER_FRAME; ++i)
@@ -936,28 +967,28 @@ D3D12AID_API void d3d12aid_CmdQueue_Create(d3d12aid_CmdQueue *outQueue, ID3D12De
 D3D12AID_API uint64_t d3d12aid_CmdQueue_GpuSignal(d3d12aid_CmdQueue *queue)
 {
     const uint64_t submitFenceValue = queue->fenceValue ++;
-    D3D12AID_CHECK(queue->queue->Signal(queue->fence, submitFenceValue));
+    D3D12AID_CALL_CHECK(queue->queue, Signal, queue->fence, submitFenceValue);
     return submitFenceValue;
 }
 
 D3D12AID_API uint64_t d3d12aid_CmdQueue_CpuSignal(d3d12aid_CmdQueue *queue)
 {
     const uint64_t submitFenceValue = queue->fenceValue ++;
-    D3D12AID_CHECK(queue->fence->Signal(submitFenceValue));
+    D3D12AID_CALL_CHECK(queue->fence, Signal, submitFenceValue);
     return submitFenceValue;
 }
 
 D3D12AID_API void d3d12aid_CmdQueue_GpuWaitForFence(d3d12aid_CmdQueue *queue, uint64_t fenceId)
 {
     D3D12AID_ASSERT(fenceId < queue->fenceValue);
-    D3D12AID_CHECK(queue->queue->Wait(queue->fence, fenceId));
+    D3D12AID_CALL_CHECK(queue->queue, Wait, queue->fence, fenceId);
 }
 D3D12AID_API bool d3d12aid_CmdQueue_IsFenceCompleted(d3d12aid_CmdQueue *queue, uint64_t fenceId)
 {
-    const uint64_t completedFenceId = queue->fence->GetCompletedValue();
+    const uint64_t completedFenceId = D3D12AID_CALL0(queue->fence, GetCompletedValue);
     if (UINT64_MAX == completedFenceId)
     {
-        HRESULT hr = queue->device->GetDeviceRemovedReason();
+        HRESULT hr = D3D12AID_CALL0(queue->device, GetDeviceRemovedReason);
         D3D12AID_ASSERT(DXGI_ERROR_DEVICE_HUNG != hr);
         D3D12AID_ASSERT(DXGI_ERROR_DEVICE_REMOVED != hr);
         D3D12AID_ASSERT(DXGI_ERROR_DEVICE_RESET != hr);
@@ -971,7 +1002,7 @@ D3D12AID_API void d3d12aid_CmdQueue_CpuWaitForFence(d3d12aid_CmdQueue *queue, ui
     D3D12AID_ASSERT(fenceId < queue->fenceValue);
     if (!d3d12aid_CmdQueue_IsFenceCompleted(queue, fenceId))
     {
-        D3D12AID_CHECK(queue->fence->SetEventOnCompletion(fenceId, queue->fenceEvent));
+        D3D12AID_CALL_CHECK(queue->fence, SetEventOnCompletion, fenceId, queue->fenceEvent);
         WaitForSingleObjectEx(queue->fenceEvent, INFINITE, FALSE);
         d3d12aid_CmdQueue_IsFenceCompleted(queue, fenceId);
     }
@@ -1011,9 +1042,12 @@ D3D12AID_API uint64_t d3d12aid_CmdQueue_SubmitMultiCmdLists(d3d12aid_CmdQueue *q
 
     /** close the command lists we are going to submit */
     for (uint32_t i = cmdListIdStart; i < cmdListIdStart + cmdListIdCount; ++i)
-        D3D12AID_CHECK(queue->cmdLists[i]->Close());
+    {
+        ID3D12GraphicsCommandList *cmdList = queue->cmdLists[i];
+        D3D12AID_CALL0_CHECK(cmdList, Close);
+    }
 
-    queue->queue->ExecuteCommandLists(cmdListIdCount, (ID3D12CommandList * const *)&queue->cmdLists[cmdListIdStart]);
+    D3D12AID_CALL(queue->queue, ExecuteCommandLists, cmdListIdCount, (ID3D12CommandList * const *)(void *)&queue->cmdLists[cmdListIdStart]);
 
     submitFenceValue = d3d12aid_CmdQueue_GpuSignal(queue);
 
@@ -1057,8 +1091,10 @@ D3D12AID_API ID3D12GraphicsCommandList **d3d12aid_CmdQueue_StartMultiCmdLists(d3
     {
         const uint32_t allocatorIdx = allocIndices[i];
 
-        D3D12AID_CHECK(queue->cmdAllocs[allocatorIdx]->Reset());
-        D3D12AID_CHECK(queue->cmdLists[i]->Reset(queue->cmdAllocs[allocatorIdx], NULL));
+        ID3D12CommandAllocator    *cmdAlloc = queue->cmdAllocs[allocatorIdx];
+        ID3D12GraphicsCommandList *cmdList  = queue->cmdLists[i];
+        D3D12AID_CALL0_CHECK(cmdAlloc, Reset);
+        D3D12AID_CALL_CHECK(cmdList, Reset, cmdAlloc, NULL);
     }
     return &queue->cmdLists[cmdListIdStart];
 }
