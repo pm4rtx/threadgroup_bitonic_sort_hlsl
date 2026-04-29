@@ -9,8 +9,6 @@
 #ifndef D3D12AID_H
 #define D3D12AID_H
 
-#include "compiler_warning.h"
-
 #ifdef _MSC_VER
 #   define D3D12AID_INLINE __forceinline
 #else
@@ -74,11 +72,15 @@
 
 #ifndef D3D12AID_SAFE_RELEASE
 #   define D3D12AID_SAFE_RELEASE(p)     \
-        if (NULL != p)                  \
+        do                              \
         {                               \
-            p->Release();               \
-            p = NULL;                   \
-        }
+            if (NULL != (p))            \
+            {                           \
+                (p)->Release();         \
+                (p) = NULL;             \
+            }                           \
+        }                               \
+        while(0)
 #endif
 
 #ifndef D3D12AID_IID_PPV_ARGS
