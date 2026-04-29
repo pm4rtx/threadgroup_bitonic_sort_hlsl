@@ -9,8 +9,6 @@
 #ifndef D3D12AID_H
 #define D3D12AID_H
 
-#include "compiler_warning.h"
-
 #ifdef _MSC_VER
 #   define D3D12AID_INLINE __forceinline
 #else
