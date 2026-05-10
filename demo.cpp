@@ -202,7 +202,7 @@ static int benchmark_ForEachDevice(benchmark_ForEachDeviceCback *callback, void 
     load_module(&d3d12, L"d3d12.dll");
     load_CreateDXGIFactory2(&dxgi);
     load_D3D12CreateDevice(&d3d12);
-    D3D12AID_CHECK(fnCreateDXGIFactory2(0, D3D12AID_IID_PPV_ARGS(&factory)));
+    D3D12AID_CHECK(fnCreateDXGIFactory2(0, D3D12AID_IID_PPV_ARGS(IDXGIFactory7, &factory)));
     IDXGIAdapter1 *adapter = NULL;
     for (uint32_t adapterIdx = 0; DXGI_ERROR_NOT_FOUND != factory->EnumAdapters1(adapterIdx, &adapter); ++adapterIdx)
     {
